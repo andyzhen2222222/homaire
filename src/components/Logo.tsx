@@ -19,16 +19,16 @@ export default function Logo({ className = '', showSlogan = false, variant = 'fu
   const heightClass =
     size === 'sm' ? 'h-8' :
     size === 'lg' ? 'h-12' :
-    size === 'xl' ? 'h-14' :
+    size === 'xl' ? 'h-16' :
     'h-10';
 
   const minStyle =
     variant === 'symbol'
-      ? (size === 'xl' ? { minWidth: '56px', minHeight: '56px' } :
+      ? (size === 'xl' ? { minWidth: '64px', minHeight: '64px' } :
          size === 'lg' ? { minWidth: '48px', minHeight: '48px' } :
          size === 'sm' ? { minWidth: '32px', minHeight: '32px' } :
          { minWidth: '40px', minHeight: '40px' })
-      : (size === 'xl' ? { minWidth: '240px', minHeight: '56px' } :
+      : (size === 'xl' ? { minWidth: '280px', minHeight: '64px' } :
          size === 'lg' ? { minWidth: '210px', minHeight: '48px' } :
          size === 'sm' ? { minWidth: '140px', minHeight: '32px' } :
          { minWidth: '160px', minHeight: '40px' });

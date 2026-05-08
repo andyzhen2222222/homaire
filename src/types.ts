@@ -11,17 +11,12 @@ export interface Product {
   subCategory?: string;
   stock: number;
   features?: string[];
-  materials?: string;
-  careInstructions?: string;
   dimensions?: {
     width: number;
     height: number;
     depth: number;
     unit?: string;
   };
-  tags?: string[];
-  seoTitle?: string;
-  seoDescription?: string;
   createdAt?: any;
   updatedAt?: any;
 }

@@ -2,65 +2,93 @@ import { useParams, Link } from 'react-router-dom';
 import { useProduct, useProducts } from '../hooks/useProducts';
 import { useCart } from '../components/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useEffect } from 'react';
-import { Plus, Minus, Info, Check, ShieldCheck, Truck, FileText, Download, Play } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  Download,
+  FileText,
+  Minus,
+  PackageCheck,
+  Play,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+} from 'lucide-react';
+import Logo from '../components/Logo';
+
+type ProductMedia = {
+  type: 'image' | 'video';
+  url: string;
+  label: string;
+};
+
+const assetLabels = [
+  'White Background',
+  'Angle View',
+  'Scene View',
+  'Lifestyle Scene',
+  'Function Detail',
+  'Dimension Proof',
+  'Scale Reference',
+  'Platform Support',
+  'Customer Context',
+];
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const { product, loading } = useProduct(id!);
   const { products: relatedProducts } = useProducts(product?.category);
   const { addItem } = useCart();
-  const [activeMedia, setActiveMedia] = useState(0); // 0 could be video if present
+  const [activeMedia, setActiveMedia] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [showAddedMsg, setShowAddedMsg] = useState(false);
-  const [activeTab, setActiveTab] = useState<'design' | 'specs' | 'docs' | 'shipping'>('design');
-
-  const tabs = [
-    { id: 'design', label: '01 / Design Details' },
-    { id: 'specs', label: '02 / Specifications' },
-    { id: 'docs', label: '03 / Documents' },
-    { id: 'shipping', label: '04 / Shipping' }
-  ];
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollPosition = window.scrollY + 250; // Offset for sticky nav and layout header
-
-      for (const tab of tabs) {
-        const element = document.getElementById(tab.id);
-        if (element) {
-          const { offsetTop, offsetHeight } = element;
-          if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
-            setActiveTab(tab.id as any);
-            break;
-          }
-        }
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
-  const [isZooming, setIsZooming] = useState(false);
 
   if (loading || !product) {
     return <div className="h-screen flex items-center justify-center font-black uppercase tracking-tighter text-2xl animate-pulse">Loading...</div>;
   }
 
-  const media = product.videoUrl 
-    ? [{ type: 'video', url: product.videoUrl }, ...product.images.map(img => ({ type: 'image', url: img }))]
-    : product.images.map(img => ({ type: 'image', url: img }));
+  const images = product.images.length ? product.images : ['https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200'];
 
-  const currentMedia = media[activeMedia];
+  const imageAt = (index: number) => images[index % images.length];
+
+  const media: ProductMedia[] = [
+    ...(product.videoUrl ? [{ type: 'video' as const, url: product.videoUrl, label: 'Product Video' }] : []),
+    ...images.map((url, index) => ({
+      type: 'image' as const,
+      url,
+      label: assetLabels[index] || `Detail ${index + 1}`,
+    })),
+  ];
+
+  const currentMedia = media[activeMedia] || media[0];
+
+  const assetPlan = useMemo(() => ([
+    { title: 'Main Visual', count: 1, image: imageAt(0), note: 'Clear hero recognition for storefront and marketplace use.' },
+    { title: 'Angle View', count: 1, image: imageAt(1), note: 'Shape, silhouette, and profile from the buyer-facing angle.' },
+    { title: 'Scene Views', count: 2, image: imageAt(2), note: 'Room-scale context that shows proportion and styling range.' },
+    { title: 'Function Detail', count: 1, image: imageAt(4), note: 'Transformation, modularity, or material behavior in close view.' },
+    { title: 'Dimension Proof', count: 2, image: imageAt(5), note: 'Size confidence before purchase and platform listing support.' },
+    { title: 'Platform Research', count: 2, image: imageAt(7), note: 'Evidence assets for channels, ads, and product education.' },
+  ]), [product.id, product.images.join('|')]);
+
+  const detailModules = [
+    { label: 'Core Selling Points', value: product.features?.length || 3 },
+    { label: 'Human Context', value: 1 },
+    { label: 'Usage Scene', value: 1 },
+    { label: 'Install Docs', value: 2 },
+    { label: 'After-sales', value: 1 },
+    { label: 'Brand Assets', value: 2 },
+  ];
 
   const recommendations = relatedProducts
-    .filter(p => p.id !== product.id)
+    .filter((item) => item.id !== product.id)
     .slice(0, 4);
 
   const handleAddToCart = () => {
-    for(let i = 0; i < quantity; i++) {
+    for (let i = 0; i < quantity; i += 1) {
       addItem(product);
     }
     setShowAddedMsg(true);
@@ -68,169 +96,107 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto px-4 py-12 md:py-24">
-        {/* Breadcrumbs */}
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-brand-navy/30 font-bold mb-12">
-        <Link to="/" className="hover:text-brand-navy transition-colors">Home</Link>
-        <span className="opacity-30">/</span>
-        <Link to={`/category/${product.category}`} className="hover:text-brand-navy capitalize">{product.category}</Link>
-        <span className="opacity-30">/</span>
-        <span className="text-brand-navy">{product.name}</span>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 xl:gap-24 mb-32">
-        {/* Media */}
-        <div className="space-y-4">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className={`aspect-square bg-brand-gray overflow-hidden border border-brand-gray shadow-xl rounded-2xl relative ${currentMedia.type === 'image' ? 'cursor-zoom-in' : ''} group`}
-            onMouseMove={(e) => {
-              if (currentMedia.type !== 'image') return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              setZoomPos({
-                x: ((e.clientX - rect.left) / rect.width) * 100,
-                y: ((e.clientY - rect.top) / rect.height) * 100
-              });
-            }}
-            onMouseEnter={() => currentMedia.type === 'image' && setIsZooming(true)}
-            onMouseLeave={() => setIsZooming(false)}
-          >
-            {currentMedia.type === 'video' ? (
-              <video 
-                src={currentMedia.url} 
-                className="w-full h-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-                controls
-              />
-            ) : (
-              <motion.img 
-                src={currentMedia.url} 
-                alt={product.name} 
-                className="w-full h-full object-cover transition-transform duration-300"
-                style={{
-                  transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
-                  scale: isZooming ? 2 : 1
-                }}
-              />
-            )}
-            {currentMedia.type === 'image' && (
-              <div className="absolute bottom-4 right-4 bg-brand-navy/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                Hover to Zoom
-              </div>
-            )}
-          </motion.div>
-          
-          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-            {media.map((item, idx) => (
-              <button 
-                key={idx}
-                onClick={() => setActiveMedia(idx)}
-                className={`w-24 aspect-square shrink-0 bg-white overflow-hidden border-2 transition-all rounded-xl relative ${activeMedia === idx ? 'border-brand-beige ring-4 ring-brand-beige/10 shadow-lg' : 'border-brand-gray hover:border-brand-beige/50'}`}
-              >
-                {item.type === 'video' ? (
-                  <div className="w-full h-full bg-brand-navy flex items-center justify-center relative">
-                    <Play className="w-6 h-6 text-white fill-current" />
-                    <span className="absolute bottom-1 right-1 text-[8px] text-white font-bold uppercase bg-black/50 px-1 rounded">Video</span>
-                  </div>
-                ) : (
-                  <img src={item.url} alt="" className="w-full h-full object-cover" />
-                )}
-                {activeMedia === idx && (
-                  <motion.div layoutId="active-thumb" className="absolute inset-0 bg-brand-beige/5 ring-1 ring-inset ring-brand-beige/20" />
-                )}
-              </button>
-            ))}
-          </div>
+    <div className="w-full bg-white text-brand-navy">
+      <section className="max-w-7xl mx-auto px-4 pt-10 pb-24">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-brand-navy/30 font-bold mb-10">
+          <Link to="/" className="hover:text-brand-navy transition-colors">Home</Link>
+          <span className="opacity-30">/</span>
+          <Link to={`/category/${product.category}`} className="hover:text-brand-navy capitalize">{product.category}</Link>
+          <span className="opacity-30">/</span>
+          <span className="text-brand-navy">{product.name}</span>
         </div>
 
-        {/* Content */}
-        <div className="flex flex-col">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-12 xl:gap-20">
+          <div className="space-y-5">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative aspect-[4/3] overflow-hidden bg-brand-gray border border-brand-gray rounded-3xl"
+            >
+              {currentMedia.type === 'video' ? (
+                <video
+                  src={currentMedia.url}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  controls
+                />
+              ) : (
+                <img src={currentMedia.url} alt={product.name} className="w-full h-full object-cover" />
+              )}
+              <div className="absolute left-5 top-5 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-navy shadow-sm">
+                {currentMedia.label}
+              </div>
+            </motion.div>
+
+            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+              {media.slice(0, 8).map((item, index) => (
+                <button
+                  key={`${item.url}-${index}`}
+                  onClick={() => setActiveMedia(index)}
+                  className={`relative aspect-square overflow-hidden rounded-xl border transition-all ${activeMedia === index ? 'border-brand-beige ring-4 ring-brand-beige/10' : 'border-brand-gray hover:border-brand-beige/60'}`}
+                  aria-label={item.label}
+                >
+                  {item.type === 'video' ? (
+                    <div className="w-full h-full bg-brand-navy flex items-center justify-center">
+                      <Play className="w-5 h-5 text-white fill-current" />
+                    </div>
+                  ) : (
+                    <img src={item.url} alt="" className="w-full h-full object-cover" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <aside className="lg:sticky lg:top-40 self-start">
             <div className="flex items-center gap-3 mb-6">
               <span className="text-brand-beige text-[9px] uppercase tracking-[0.3em] font-bold bg-brand-beige/5 px-3 py-1 rounded-full border border-brand-beige/10">Premium Collection</span>
-              <span className="text-brand-navy/30 text-[9px] uppercase tracking-[0.3em] font-bold">New Arrival</span>
+              <span className="text-brand-navy/30 text-[9px] uppercase tracking-[0.3em] font-bold">{product.stock} In Stock</span>
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-8 leading-[0.85]">{product.name}</h1>
-            
-            <div className="flex items-baseline gap-4 mb-10">
+
+            <p className="text-lg text-brand-navy/65 leading-relaxed font-medium mb-8">{product.description}</p>
+
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              {detailModules.map((item) => (
+                <div key={item.label} className="border border-brand-gray rounded-xl px-4 py-3 bg-white">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-brand-navy/35 mb-1">{item.label}</p>
+                  <p className="text-2xl font-brand font-bold tracking-tighter text-brand-navy">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-baseline gap-4 mb-8">
               <span className={`text-5xl font-brand font-bold ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'} tracking-tighter`}>
-                € {product.price.toLocaleString()}
+                € {(product.discountPrice || product.price).toLocaleString()}
               </span>
               {product.onSale && (
-                <span className="text-lg text-brand-navy/20 font-bold line-through tracking-tighter">€ {Math.round(product.price * 1.2)}</span>
+                <span className="text-lg text-brand-navy/25 font-bold line-through tracking-tighter">€ {product.price.toLocaleString()}</span>
               )}
             </div>
-            
-            <div className="prose prose-sm text-brand-navy/60 font-medium leading-relaxed mb-12 max-w-none text-lg">
-              <p>{product.description}</p>
-              <p className="mt-4">Designed with the "Zip Small. Live Big." philosophy, this piece maximizes your spatial efficiency without sacrificing the tactile luxury of high-end furniture.</p>
-            </div>
 
-            {/* Features */}
-            {product.features && (
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 mb-10 border-t border-brand-gray pt-10">
-                {product.features.map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-[10px] uppercase tracking-widest font-bold text-brand-navy">
-                    <Check className="w-4 h-4 text-brand-beige" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {/* Dimensions */}
-            {product.dimensions && (
-              <div className="bg-brand-gray/50 border border-brand-gray p-8 mb-10 rounded-2xl">
-                <h4 className="text-[10px] uppercase tracking-widest font-bold text-brand-navy mb-6 flex items-center gap-2">
-                  <Info className="w-3 h-3 text-brand-beige" /> Structural Specifications
-                </h4>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="border-r border-brand-gray">
-                    <span className="block text-[9px] text-brand-navy/40 uppercase font-bold tracking-widest mb-1">Width</span>
-                    <span className="font-bold text-lg text-brand-navy tracking-tighter">{product.dimensions.width} cm</span>
-                  </div>
-                  <div className="border-r border-brand-gray">
-                    <span className="block text-[9px] text-brand-navy/40 uppercase font-bold tracking-widest mb-1">Height</span>
-                    <span className="font-bold text-lg text-brand-navy tracking-tighter">{product.dimensions.height} cm</span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] text-brand-navy/40 uppercase font-bold tracking-widest mb-1">Depth</span>
-                    <span className="font-bold text-lg text-brand-navy tracking-tighter">{product.dimensions.depth} cm</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Controls */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-12">
+            <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex items-center bg-white border border-brand-navy rounded-xl overflow-hidden shrink-0 shadow-sm">
-                <button 
-                  onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                  className="p-5 hover:text-brand-beige transition-colors text-brand-navy"
-                ><Minus className="w-4 h-4" /></button>
+                <button onClick={() => setQuantity((value) => Math.max(1, value - 1))} className="p-5 hover:text-brand-beige transition-colors text-brand-navy" aria-label="Decrease quantity">
+                  <Minus className="w-4 h-4" />
+                </button>
                 <span className="w-14 text-center font-bold text-2xl text-brand-navy">{quantity}</span>
-                <button 
-                  onClick={() => setQuantity(q => q + 1)}
-                  className="p-5 hover:text-brand-beige transition-colors text-brand-navy"
-                ><Plus className="w-4 h-4" /></button>
+                <button onClick={() => setQuantity((value) => value + 1)} className="p-5 hover:text-brand-beige transition-colors text-brand-navy" aria-label="Increase quantity">
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
-              <button 
+              <button
                 onClick={handleAddToCart}
                 className="flex-grow bg-brand-navy text-white uppercase font-bold tracking-widest text-[12px] py-5 hover:bg-brand-beige transition-all relative overflow-hidden shadow-2xl rounded-2xl group"
               >
-                <span className="group-hover:scale-110 block transition-transform">Add to Collection</span>
+                <span className="group-hover:scale-105 block transition-transform">Add to Bag</span>
                 <AnimatePresence>
                   {showAddedMsg && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
@@ -242,271 +208,209 @@ export default function ProductDetail() {
                 </AnimatePresence>
               </button>
             </div>
-
-            {/* USPs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-10 border-t border-brand-gray">
-              <div className="flex gap-4">
-                <div className="w-12 h-12 bg-brand-gray flex items-center justify-center rounded-xl text-brand-accent">
-                  <Truck className="w-6 h-6" />
-                </div>
-                <div>
-                  <h5 className="text-[11px] uppercase font-black text-brand-navy mb-1">Worldwide Shipping</h5>
-                  <p className="text-[10px] text-brand-navy/60 font-bold">Free on orders over €500</p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="w-12 h-12 bg-brand-gray flex items-center justify-center rounded-xl text-brand-accent">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <h5 className="text-[11px] uppercase font-black text-brand-navy mb-1">10-Year Warranty</h5>
-                  <p className="text-[10px] text-brand-navy/60 font-bold">A commitment to quality</p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+          </aside>
         </div>
-      </div>
-    </div>
+      </section>
 
-    {/* Detailed Info - Single Column Sections */}
-    <section className="mb-32 border-t border-brand-gray relative">
-      {/* Sticky Sub-nav - Offset to handle Layout's top headers */}
-      <div className="sticky top-[136px] bg-white/95 backdrop-blur-md z-40 border-b border-brand-gray hidden md:block">
-        <div className="max-w-[1250px] mx-auto px-4 flex gap-12 text-[10px] font-black uppercase tracking-[0.3em]">
-          {tabs.map(item => (
-            <button
-              key={item.id}
-              onClick={() => {
-                const el = document.getElementById(item.id);
-                if (el) {
-                  const offset = 200; // Account for sticky headers
-                  const bodyRect = document.body.getBoundingClientRect().top;
-                  const elementRect = el.getBoundingClientRect().top;
-                  const elementPosition = elementRect - bodyRect;
-                  const offsetPosition = elementPosition - offset;
-
-                  window.scrollTo({
-                    top: offsetPosition,
-                    behavior: 'smooth'
-                  });
-                }
-              }}
-              className={`py-6 transition-colors relative group ${activeTab === item.id ? 'text-brand-accent' : 'text-brand-navy/60 hover:text-brand-accent'}`}
-            >
-              {item.label}
-              <span className={`absolute bottom-0 left-0 h-[2px] bg-brand-accent transition-all duration-300 ${activeTab === item.id ? 'w-full' : 'w-0 group-hover:w-full'}`}></span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="w-full">
-        {/* Design Details Section */}
-        <div id="design" className="w-full py-32 scroll-mt-48">
-          <div className="max-w-[1250px] mx-auto px-4">
-            <div className="mb-16">
-              <span className="text-brand-accent font-black text-[12px] uppercase tracking-[0.5em] block mb-4">Focus</span>
-              <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter text-brand-navy leading-none">Design &<br/>Craftsmanship</h2>
+      <section className="border-y border-brand-gray bg-brand-gray/35">
+        <div className="max-w-7xl mx-auto px-4 py-20">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
+            <div>
+              <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Asset System</span>
+              <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none">Product Visual Stack</h2>
             </div>
-            
-            {/* Immersive Visual Block */}
-            <div className="relative aspect-[21/9] bg-brand-charcoal overflow-hidden mb-24 rounded-3xl shadow-2xl">
-              <img 
-                src={product.images[1] || product.images[0]} 
-                className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-[2s]"
-                alt="Atmospheric detail"
-              />
-              <div className="absolute inset-0 flex items-center justify-center text-center p-8">
-                <div className="max-w-3xl">
-                  <p className="text-xl md:text-3xl font-medium text-white/90 leading-tight italic">
-                    "Furniture should be art that welcomes you home."
-                  </p>
-                </div>
-              </div>
-            </div>
+            <p className="max-w-lg text-sm md:text-base text-brand-navy/60 font-medium leading-relaxed">
+              The page is arranged around the material set used for this product: main visual, angle proof, scene context, function, dimensions, video, and platform support assets.
+            </p>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-24 items-start">
-              <div className="space-y-16">
-                <div className="prose prose-xl text-brand-navy/70 font-medium leading-relaxed">
-                  <h3 className="text-2xl font-black uppercase tracking-tight text-brand-navy mb-6">Redefining Space</h3>
-                  <p>
-                    Through a deep intersection of geometric precision and natural materials, this piece is designed to be the anchor of your living environment. We've optimized every angle for both visual balance and ergonomic support.
-                  </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {assetPlan.map((asset, index) => (
+              <motion.article
+                key={asset.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-80px' }}
+                transition={{ delay: index * 0.04 }}
+                className={`group overflow-hidden bg-white border border-brand-gray rounded-2xl ${index === 0 ? 'md:col-span-2 xl:col-span-1' : ''}`}
+              >
+                <div className="aspect-[4/3] overflow-hidden bg-brand-gray">
+                  <img src={asset.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
-                   <div className="space-y-4">
-                      <div className="w-8 h-[2px] bg-brand-accent"></div>
-                      <span className="text-brand-accent font-black text-[10px] uppercase tracking-widest block">Material Selection</span>
-                      <p className="text-sm font-bold text-brand-navy uppercase">AHEC Certified Sustainably Sourced Walnut</p>
-                   </div>
-                   <div className="space-y-4">
-                      <div className="w-8 h-[2px] bg-brand-accent"></div>
-                      <span className="text-brand-accent font-black text-[10px] uppercase tracking-widest block">Artisan Tech</span>
-                      <p className="text-sm font-bold text-brand-navy uppercase">Seamless blind-joinery & computerized precision</p>
-                   </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy">{asset.title}</h3>
+                    <span className="w-7 h-7 rounded-full bg-brand-navy text-white text-[10px] font-black flex items-center justify-center">{asset.count}</span>
+                  </div>
+                  <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">{asset.note}</p>
                 </div>
-              </div>
-              <div className="aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl transform md:translate-y-12 transition-transform duration-700">
-                <img src={product.images[2] || product.images[0]} className="w-full h-full object-cover hover:scale-110 transition-transform duration-1000" alt="Detail zoom" />
-              </div>
-            </div>
+              </motion.article>
+            ))}
           </div>
         </div>
+      </section>
 
-        {/* Specs Section */}
-        <div id="specs" className="w-full py-32 bg-brand-gray scroll-mt-48">
-          <div className="max-w-[1250px] mx-auto px-4">
-            <div className="max-w-2xl">
-              <span className="text-brand-accent font-black text-[12px] uppercase tracking-[0.5em] block mb-4">Integrity</span>
-              <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter text-brand-navy mb-20 leading-none">Technical<br/>Specifications</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-20">
-              {[
-                { label: 'Primary Material', value: 'North American Walnut' },
-                { label: 'Filling', value: 'High-density Resilience Foam' },
-                { label: 'Fabric Composition', value: '45% Linen / 55% Wool Blend' },
-                { label: 'Assembly', value: 'Simple Self-Assembly (Tools Included)' },
-                { label: 'Dimensions', value: `${product.dimensions?.width || 0} x ${product.dimensions?.height || 0} x ${product.dimensions?.depth || 0} CM` },
-                { label: 'Package Weight', value: 'Approx. 45.3 KG' },
-                { label: 'Max Load', value: '250 KG' },
-                { label: 'Finishing', value: 'Matte Environment-friendly Oil' }
-              ].map((spec, i) => (
-                <div key={i} className="flex justify-between py-10 border-b border-brand-gray group hover:bg-brand-gray/60 px-4 transition-colors">
-                  <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/50 group-hover:text-brand-accent transition-colors">{spec.label}</span>
-                  <span className="text-base font-black text-brand-navy">{spec.value}</span>
+      <section className="max-w-7xl mx-auto px-4 py-28">
+        <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-16 items-start">
+          <div>
+            <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Core Value</span>
+            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Why It Works</h2>
+            <p className="text-lg text-brand-navy/60 leading-relaxed font-medium mb-10">
+              Instead of burying benefits under generic specs, the page gives each proof asset a job: show the silhouette, prove the function, validate size, and make purchase risk feel smaller.
+            </p>
+            <div className="space-y-4">
+              {(product.features || ['Compact Footprint', 'Fast Assembly', 'Premium Comfort']).map((feature) => (
+                <div key={feature} className="flex items-center gap-4 border-b border-brand-gray py-4">
+                  <Check className="w-5 h-5 text-brand-beige shrink-0" />
+                  <span className="text-sm font-black uppercase tracking-widest text-brand-navy">{feature}</span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Docs Section */}
-        <div id="docs" className="w-full py-32 scroll-mt-48">
-          <div className="max-w-[1250px] mx-auto px-4">
-            <div className="mb-20">
-              <span className="text-brand-accent font-black text-[12px] uppercase tracking-[0.5em] block mb-4">Support</span>
-              <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter text-brand-navy leading-none">Installation<br/>& Documentation</h2>
+          <div className="grid grid-cols-2 gap-5">
+            <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-brand-gray border border-brand-gray">
+              <img src={imageAt(2)} alt="" className="w-full h-full object-cover" />
             </div>
-            <div className="bg-brand-gray p-12 rounded-[32px] border border-brand-gray inline-block w-full">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <a href="#" className="flex items-center justify-between p-8 bg-white rounded-2xl border border-brand-gray hover:border-brand-accent hover:shadow-xl transition-all group">
-                  <div className="flex items-center gap-6">
-                    <div className="w-14 h-14 bg-brand-gray flex items-center justify-center rounded-xl text-brand-navy/50 group-hover:text-brand-accent group-hover:bg-brand-accent/5 transition-all">
-                      <FileText className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-black uppercase tracking-widest text-brand-navy leading-none mb-2">Assembly Manual (PDF)</p>
-                      <p className="text-[10px] font-bold text-brand-navy/50 uppercase tracking-widest">Global English / 2.4 MB</p>
-                    </div>
-                  </div>
-                  <Download className="w-6 h-6 text-brand-navy/25 group-hover:text-brand-accent" />
-                </a>
-                <a href="#" className="flex items-center justify-between p-8 bg-white rounded-2xl border border-brand-gray hover:border-brand-accent hover:shadow-xl transition-all group">
-                  <div className="flex items-center gap-6">
-                    <div className="w-14 h-14 bg-brand-gray flex items-center justify-center rounded-xl text-brand-navy/50 group-hover:text-brand-accent group-hover:bg-brand-accent/5 transition-all">
-                      <Play className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-black uppercase tracking-widest text-brand-navy leading-none mb-2">Installation Video</p>
-                      <p className="text-[10px] font-bold text-brand-navy/50 uppercase tracking-widest">4K Cinematic Guide</p>
-                    </div>
-                  </div>
-                  <Check className="w-6 h-6 text-brand-navy/25 group-hover:text-brand-accent" />
-                </a>
+            <div className="space-y-5 pt-12">
+              <div className="aspect-square overflow-hidden rounded-2xl bg-brand-gray border border-brand-gray">
+                <img src={imageAt(3)} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="bg-brand-navy text-white rounded-2xl p-8">
+                <Sparkles className="w-7 h-7 text-brand-beige mb-6" />
+                <p className="text-2xl font-brand font-bold uppercase tracking-tighter leading-tight">Zip Small. Live Big.</p>
               </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Shipping Section */}
-        <div id="shipping" className="w-full py-32 bg-brand-charcoal scroll-mt-48 overflow-hidden relative">
-          {/* Decorative background element */}
-          <div className="absolute top-0 right-0 w-[50%] h-full bg-brand-accent opacity-5 -skew-x-12 translate-x-1/2"></div>
-          
-          <div className="max-w-[1250px] mx-auto px-4 relative z-10">
-            <div className="mb-20 text-white">
-              <span className="text-brand-accent font-black text-[12px] uppercase tracking-[0.5em] block mb-4">Logistics</span>
-              <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none">Seamless<br/>Experience</h2>
+      <section className="bg-brand-charcoal text-white py-28 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div>
+            <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Size Confidence</span>
+            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Measured For Real Rooms</h2>
+            <p className="text-white/65 text-lg leading-relaxed font-medium mb-10">
+              Dimension assets should sit close to the purchase area and again in the proof section, because size is one of the highest-friction decisions for furniture.
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: 'Width', value: product.dimensions?.width || 0 },
+                { label: 'Height', value: product.dimensions?.height || 0 },
+                { label: 'Depth', value: product.dimensions?.depth || 0 },
+              ].map((item) => (
+                <div key={item.label} className="border border-white/10 rounded-2xl p-5">
+                  <p className="text-[9px] uppercase tracking-widest font-bold text-white/35 mb-2">{item.label}</p>
+                  <p className="text-3xl font-brand font-bold tracking-tighter">{item.value}<span className="text-sm text-brand-beige ml-1">cm</span></p>
+                </div>
+              ))}
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
-              <div className="lg:col-span-7">
-                <div className="bg-white/5 backdrop-blur-xl p-16 rounded-[40px] border border-white/10 text-white shadow-3xl">
-                  <h4 className="text-4xl font-black uppercase tracking-tighter mb-8 italic">"Total Peace of Mind"</h4>
-                  <p className="text-white/70 font-medium text-xl leading-relaxed mb-12">
-                    We've optimized our logistics network to offer a zero-friction experience from terminal to your living room. Our white-glove service includes full assembly and debris removal.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                    <div className="p-8 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-accent transition-colors">
-                      <Truck className="w-8 h-8 text-brand-accent mb-4" />
-                      <h5 className="text-xs font-black uppercase tracking-widest mb-2">Network</h5>
-                      <p className="text-[11px] text-white/70 font-bold uppercase">Dedicated furniture courier fleet</p>
-                    </div>
-                    <div className="p-8 bg-white/5 rounded-2xl border border-white/5 hover:border-brand-accent transition-colors">
-                      <ShieldCheck className="w-8 h-8 text-brand-accent mb-4" />
-                      <h5 className="text-xs font-black uppercase tracking-widest mb-2">Assurance</h5>
-                      <p className="text-[11px] text-white/70 font-bold uppercase">Full structural insurance during transit</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="lg:col-span-5">
-                <div className="space-y-12">
-                   {[
-                     { label: 'Processing Time', value: '48 Hours' },
-                     { label: 'Return Window', value: '365 Days' },
-                     { label: 'Warranty Period', value: '10 Years' }
-                   ].map((item, i) => (
-                     <div key={i} className="group">
-                        <span className="text-brand-accent font-black text-[10px] uppercase tracking-[0.3em] block mb-2">{item.label}</span>
-                        <p className="text-4xl font-black text-white uppercase tracking-tighter group-hover:translate-x-4 transition-transform duration-500">{item.value}</p>
-                     </div>
-                   ))}
-                </div>
-              </div>
+          </div>
+
+          <div className="relative">
+            <div className="aspect-[5/4] rounded-3xl overflow-hidden bg-white/5 border border-white/10">
+              <img src={imageAt(5)} alt="" className="w-full h-full object-cover opacity-90" />
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-      {/* Recommended Section */}
+      <section className="max-w-7xl mx-auto px-4 py-28">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+            <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Support</span>
+            <h2 className="text-4xl md:text-5xl font-brand font-bold uppercase tracking-tighter leading-none">Install, Service, Brand</h2>
+          </div>
+
+          <a href="#" className="group border border-brand-gray rounded-2xl p-8 hover:border-brand-beige transition-colors">
+            <FileText className="w-8 h-8 text-brand-beige mb-8" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Installation Document</h3>
+            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium mb-8">Assembly manual and care checkpoints for the product package.</p>
+            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-navy group-hover:text-brand-beige">
+              Download <Download className="w-4 h-4" />
+            </span>
+          </a>
+
+          <a href="#" className="group border border-brand-gray rounded-2xl p-8 hover:border-brand-beige transition-colors">
+            <Play className="w-8 h-8 text-brand-beige mb-8" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Installation Video</h3>
+            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium mb-8">Video walkthrough for setup, conversion, and feature explanation.</p>
+            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-navy group-hover:text-brand-beige">
+              Watch <ArrowRight className="w-4 h-4" />
+            </span>
+          </a>
+
+          <div className="border border-brand-gray rounded-2xl p-8">
+            <ShieldCheck className="w-8 h-8 text-brand-beige mb-8" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">After-sales Terms</h3>
+            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">365-day worry-free returns, quality guarantee, and responsive support for every order.</p>
+          </div>
+
+          <div className="border border-brand-gray rounded-2xl p-8">
+            <RotateCcw className="w-8 h-8 text-brand-beige mb-8" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Usage Scenario</h3>
+            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">Compact apartment, guest-room conversion, and flexible living-room planning.</p>
+          </div>
+
+          <div className="border border-brand-gray rounded-2xl p-8">
+            <PackageCheck className="w-8 h-8 text-brand-beige mb-8" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Platform Proof</h3>
+            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">Gallery assets are structured for storefront, ads, marketplace, and customer service use.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-brand-gray/35 border-y border-brand-gray">
+        <div className="max-w-7xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-14 items-center">
+          <div>
+            <Logo size="lg" className="mb-10" />
+            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Built For Smaller Spaces, Not Smaller Lives</h2>
+            <p className="text-lg text-brand-navy/60 leading-relaxed font-medium">
+              ZipSofa is positioned around transformation: a compact object that carries comfort, flexibility, and visual calm into everyday rooms.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-5">
+            <div className="aspect-square rounded-2xl overflow-hidden bg-white border border-brand-gray">
+              <img src={imageAt(6)} alt="" className="w-full h-full object-cover" />
+            </div>
+            <div className="aspect-square rounded-2xl overflow-hidden bg-white border border-brand-gray">
+              <img src={imageAt(7)} alt="" className="w-full h-full object-cover" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {recommendations.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 pb-32">
-          <div className="pt-24 border-t border-brand-gray">
-          <div className="flex justify-between items-end mb-16">
+        <section className="max-w-7xl mx-auto px-4 py-28">
+          <div className="flex justify-between items-end mb-14">
             <div>
-              <h2 className="text-5xl font-black uppercase tracking-tighter text-brand-navy">You May Also Like</h2>
-              <p className="text-brand-navy/60 font-bold uppercase text-[10px] tracking-widest mt-4">Selected just for you based on your taste</p>
+              <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">More</span>
+              <h2 className="text-4xl md:text-5xl font-brand font-bold uppercase tracking-tighter text-brand-navy">You May Also Like</h2>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {recommendations.map((item, i) => (
+            {recommendations.map((item, index) => (
               <motion.div
                 key={item.id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
+                transition={{ delay: index * 0.06 }}
                 className="group"
               >
                 <Link to={`/product/${item.id}`}>
                   <div className="aspect-square bg-brand-gray overflow-hidden mb-6 rounded-2xl relative border border-brand-gray">
                     <img src={item.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={item.name} />
-                    <button className="absolute bottom-4 left-4 right-4 bg-white text-brand-navy py-3 text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all rounded-xl shadow-xl hover:bg-brand-accent hover:text-white">
-                      View Details
-                    </button>
                   </div>
                   <h4 className="text-sm font-black uppercase tracking-tight text-brand-navy group-hover:text-brand-accent transition-colors leading-tight mb-2">{item.name}</h4>
-                  <p className="text-lg font-black text-brand-navy tracking-tighter">¥ {item.discountPrice || item.price}</p>
+                  <p className="text-lg font-black text-brand-navy tracking-tighter">€ {(item.discountPrice || item.price).toLocaleString()}</p>
                 </Link>
               </motion.div>
             ))}
           </div>
-        </div>
-      </section>
-    )}
-  </div>
-);
+        </section>
+      )}
+    </div>
+  );
 }

@@ -4,6 +4,7 @@ import { useOrders, usePromotions, useAdminActions } from '../hooks/useAdminData
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { 
   Plus, Trash2, Edit, Package, DollarSign, ShoppingBag, 
   Users, LayoutDashboard, Search, X, Check, ArrowRight,
@@ -14,6 +15,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Product, Order, Promotion, StoreConfig } from '../types';
 import { useStoreConfig } from '../hooks/useAdminData';
+import { storage } from '../lib/firebase';
 
 export default function AdminDashboard() {
   const { products, loading: productsLoading } = useProducts();
@@ -593,6 +595,11 @@ function StoreSettingsForm({ config, onSave }: { config?: StoreConfig, onSave: (
 }
 
 function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (data: Partial<Product>) => void }) {
+  const imagesFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [newImageUrl, setNewImageUrl] = useState('');
+
   const [formData, setFormData] = useState<Partial<Product>>(initialData || {
     name: '',
     price: 0,
@@ -600,16 +607,47 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
     category: 'sofas',
     images: [],
     stock: 0,
-    materials: [],
-    careInstructions: '',
-    dimensions: { length: 0, width: 0, height: 0, unit: 'cm' },
-    tags: [],
-    seoTitle: '',
-    seoDescription: '',
-    slug: '',
     onSale: false,
     discountPrice: 0
   });
+
+  const makeUploadId = () => {
+    try {
+      const c: any = (globalThis as any).crypto;
+      return c?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    } catch {
+      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+  };
+
+  const uploadImagesToStorage = async (files: FileList) => {
+    setUploadingImages(true);
+    setUploadError(null);
+    try {
+      const productFolder = initialData?.id ? `products/${initialData.id}` : 'products/drafts';
+      const uploadedUrls: string[] = [];
+
+      for (const file of Array.from(files)) {
+        const id = makeUploadId();
+        const safeName = (file.name || 'image').replace(/[^a-zA-Z0-9._-]+/g, '-');
+        const path = `${productFolder}/${id}-${safeName}`;
+        const objectRef = storageRef(storage, path);
+        await uploadBytes(objectRef, file);
+        const url = await getDownloadURL(objectRef);
+        uploadedUrls.push(url);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        images: [...(prev.images || []), ...uploadedUrls],
+      }));
+    } catch (e: any) {
+      setUploadError(e?.message || 'Upload failed');
+    } finally {
+      setUploadingImages(false);
+      if (imagesFileInputRef.current) imagesFileInputRef.current.value = '';
+    }
+  };
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-12">
@@ -646,43 +684,103 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
             </div>
           </div>
 
-          <div>
-             <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Digital Synchronization (SEO)</label>
-             <div className="space-y-4">
-               <input type="text" value={formData.seoTitle} onChange={e => setFormData({...formData, seoTitle: e.target.value})} placeholder="SEO Designation" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-               <textarea value={formData.seoDescription} onChange={e => setFormData({...formData, seoDescription: e.target.value})} placeholder="Global Description" rows={2} className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-               <input type="text" value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} placeholder="Static URL Slug" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-             </div>
+          <div className="bg-brand-gray/40 border border-brand-gray rounded-[2rem] p-6">
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-navy/40 mb-3">Lean Listing Mode</p>
+            <p className="text-sm leading-relaxed text-brand-navy/60 font-medium">
+              This form only asks for fields that directly affect the storefront: product copy, category, price, stock, sale status, and gallery assets.
+            </p>
           </div>
         </div>
 
-        <div className="space-y-8">
-          <div>
-            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Visual Documentation</label>
-            <div className="space-y-4">
-              <input type="text" value={formData.images?.[0] || ''} onChange={e => setFormData({...formData, images: [e.target.value, ...(formData.images?.slice(1) || [])]})} placeholder="Primary Asset URL" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <input type="text" value={formData.images?.[1] || ''} onChange={e => setFormData({...formData, images: [formData.images?.[0] || '', e.target.value, ...(formData.images?.slice(2) || [])]})} placeholder="Secondary Asset URL" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <div className="grid grid-cols-2 gap-4">
-                {formData.images?.[0] && <img src={formData.images[0]} alt="" className="w-full aspect-square object-cover rounded-[1.5rem] bg-brand-gray border border-brand-gray shadow-sm" />}
-                {formData.images?.[1] && <img src={formData.images[1]} alt="" className="w-full aspect-square object-cover rounded-[1.5rem] bg-brand-gray border border-brand-gray shadow-sm" />}
-              </div>
-            </div>
-          </div>
+	        <div className="space-y-8">
+	          <div>
+	            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Visual Documentation</label>
+	            <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => imagesFileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-brand-gray text-[10px] font-bold uppercase tracking-widest text-brand-navy hover:border-brand-beige transition-colors disabled:opacity-50"
+                    disabled={uploadingImages}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    {uploadingImages ? 'Uploading...' : 'Upload Images'}
+                  </button>
+                  <input
+                    ref={imagesFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (!e.target.files || e.target.files.length === 0) return;
+                      void uploadImagesToStorage(e.target.files);
+                    }}
+                  />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-navy/30">
+                    {initialData?.id ? 'Saved To Product Folder' : 'Saved To Drafts Folder'}
+                  </span>
+                </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Structural Parameters</label>
-            <div className="grid grid-cols-3 gap-3">
-              <input type="number" placeholder="L" value={formData.dimensions?.length} onChange={e => setFormData({...formData, dimensions: {...formData.dimensions!, length: parseFloat(e.target.value)}})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <input type="number" placeholder="W" value={formData.dimensions?.width} onChange={e => setFormData({...formData, dimensions: {...formData.dimensions!, width: parseFloat(e.target.value)}})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <input type="number" placeholder="H" value={formData.dimensions?.height} onChange={e => setFormData({...formData, dimensions: {...formData.dimensions!, height: parseFloat(e.target.value)}})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-            </div>
-            <textarea value={formData.careInstructions} onChange={e => setFormData({...formData, careInstructions: e.target.value})} placeholder="Maintenance & Preservation" rows={3} className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige mt-6" />
-          </div>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    placeholder="Paste Image URL (optional)"
+                    className="flex-grow bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = newImageUrl.trim();
+                      if (!url) return;
+                      setFormData((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
+                      setNewImageUrl('');
+                    }}
+                    className="px-6 py-4 rounded-xl bg-brand-navy text-white text-[10px] font-bold uppercase tracking-widest hover:bg-brand-beige transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Categorical Tags</label>
-            <input type="text" value={formData.tags?.join(', ')} onChange={e => setFormData({...formData, tags: e.target.value.split(',').map(t => t.trim())})} placeholder="eco-modular, premium, signatures" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-          </div>
+                {uploadError && (
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
+                    {uploadError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-4">
+                  {(formData.images || []).slice(0, 9).map((url, idx) => (
+                    <div key={`${url}-${idx}`} className="relative group">
+                      <img
+                        src={url}
+                        alt=""
+                        className="w-full aspect-square object-cover rounded-[1.5rem] bg-brand-gray border border-brand-gray shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            images: (prev.images || []).filter((_, i) => i !== idx),
+                          }));
+                        }}
+                        className="absolute top-3 right-3 w-9 h-9 rounded-xl bg-white/90 border border-brand-gray text-brand-navy/40 hover:text-red-600 hover:border-red-200 hover:bg-white transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                        aria-label="Remove image"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
+                  Tip: Upload 6-10 images for a richer product detail page.
+                </p>
+	            </div>
+	          </div>
+
         </div>
       </div>
 
