@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A furniture item for sale",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "The name of the sofa or furniture item" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "category": { "type": "string", "description": "Slug of the category" },
+        "stock": { "type": "integer" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "dimensions": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "number" },
+            "height": { "type": "number" },
+            "depth": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "price", "category", "images"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A group of products (e.g. Sofas, Beds)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "slug"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A registered customer",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A completed purchase",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "quantity": { "type": "integer" },
+              "price": { "type": "number" },
+              "name": { "type": "string" }
+            }
+          } 
+        },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "processing", "shipped", "delivered", "cancelled"] },
+        "shippingAddress": { "type": "object" },
+        "paymentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items", "total", "status"]
+    },
+    "Promotion": {
+      "title": "Promotion",
+      "description": "Banners and promotional items for the home page",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "link": { "type": "string" },
+        "active": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["hero", "card", "sale"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "imageUrl", "active", "type"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "All furniture products"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Product categories"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders"
+    },
+    "/promotions/{promoId}": {
+      "schema": "Promotion",
+      "description": "Home page banners and promos"
+    }
+  }
+}

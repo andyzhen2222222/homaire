@@ -1,0 +1,15 @@
+.DS_Store
+node_modules
+dist
+VI
+数字人
+
+# Local env
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
