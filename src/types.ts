@@ -2,21 +2,17 @@ export interface Product {
   id: string;
   name: string;
   description: string;
+  detailHtml?: string;
   price: number;
   onSale?: boolean;
   discountPrice?: number;
   images: string[];
   videoUrl?: string;
+  manualUrl?: string;
   category: string;
   subCategory?: string;
   stock: number;
   features?: string[];
-  dimensions?: {
-    width: number;
-    height: number;
-    depth: number;
-    unit?: string;
-  };
   createdAt?: any;
   updatedAt?: any;
 }

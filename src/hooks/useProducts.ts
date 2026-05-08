@@ -4,6 +4,11 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Product } from '../types';
 import { productsData } from '../data/products';
 
+const mergeWithMockProduct = (product: Product): Product => {
+  const mock = productsData.find((item) => item.id === product.id);
+  return mock ? { ...mock, ...product } : product;
+};
+
 export function useProducts(categorySlug?: string) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +23,7 @@ export function useProducts(categorySlug?: string) {
         }
         
         const querySnapshot = await getDocs(q);
-        const fetchedProducts = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+        const fetchedProducts = querySnapshot.docs.map(doc => mergeWithMockProduct({ id: doc.id, ...doc.data() } as Product));
         
         // If DB is empty, use mock data as fallback for the visual demo
         if (fetchedProducts.length === 0) {
@@ -64,7 +69,7 @@ export function useProduct(id: string) {
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
-          setProduct({ id: docSnap.id, ...docSnap.data() } as Product);
+          setProduct(mergeWithMockProduct({ id: docSnap.id, ...docSnap.data() } as Product));
         } else {
           // Fallback to mock
           const mock = productsData.find(p => p.id === id);

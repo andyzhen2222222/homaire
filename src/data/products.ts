@@ -1,5 +1,7 @@
 import { Product } from '../types';
 
+const SAMPLE_MANUAL_URL = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+
 const SOFA_IMAGES = [
   'https://images.unsplash.com/photo-1555041469-a586c61ea9bc',
   'https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e',
@@ -53,6 +55,46 @@ const LIGHTING_IMAGES = [
   'https://images.unsplash.com/photo-1520923179278-ee25e25e09e4'
 ];
 
+const DECOR_IMAGES = [
+  'https://images.unsplash.com/photo-1513519247388-4e284044efd3',
+  'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85',
+  'https://images.unsplash.com/photo-1513161455079-7dc1de15ef3e',
+  'https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e',
+  'https://images.unsplash.com/photo-1524758631624-e2822e304c36',
+  'https://images.unsplash.com/photo-1505691938895-1758d7eaa511',
+  'https://images.unsplash.com/photo-1484101403633-562f891dc89a',
+  'https://images.unsplash.com/photo-1519710164239-da123dc03ef4'
+];
+
+const STORAGE_IMAGES = [
+  'https://images.unsplash.com/photo-1595428774223-ef52624120d2',
+  'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6',
+  'https://images.unsplash.com/photo-1618220179428-22790b461013',
+  'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3',
+  'https://images.unsplash.com/photo-1538688525198-9b88f6f53126',
+  'https://images.unsplash.com/photo-1616486029423-aaa4789e8c9a',
+  'https://images.unsplash.com/photo-1505693415918-91e514789da1',
+  'https://images.unsplash.com/photo-1484154218962-a197022b5858'
+];
+
+const GARDEN_IMAGES = [
+  'https://images.unsplash.com/photo-1517409197771-1520a09e8b91',
+  'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0',
+  'https://images.unsplash.com/photo-1600566752355-35792bedcfea',
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c',
+  'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea',
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c',
+  'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d',
+  'https://images.unsplash.com/photo-1600210491369-e753d80a41f3'
+];
+
+const createAssetStack = (images: string[], index: number, category: string) =>
+  Array.from({ length: 8 }).map((_, assetIndex) => {
+    const base = images[(index + assetIndex * 2) % images.length];
+    const aspect = assetIndex === 2 || assetIndex === 3 ? 'w=1200&h=900' : 'w=1000&h=1000';
+    return `${base}?auto=format&fit=crop&q=82&${aspect}&cat=${category}&item=${index}&asset=${assetIndex + 1}`;
+  });
+
 const SOFA_SUBCATS = ['modular', 'zip-leather', 'compact', 'luxury-nest'];
 const sofaItems: Product[] = Array.from({ length: 60 }).map((_, i) => {
   const subCat = SOFA_SUBCATS[i % SOFA_SUBCATS.length];
@@ -63,25 +105,17 @@ const sofaItems: Product[] = Array.from({ length: 60 }).map((_, i) => {
   return {
     id: `sofa-${i + 1}`,
     name: name,
-    description: i === 0 ? "Our flagship modular design. Zip Small. Live Big. Adaptable to any urban living space." : `A beautifully crafted ${subCat} sofa from the ZipSofa collection.`,
+    description: i === 0 ? "Our flagship modular sofa is built around compact transformation, flexible comfort, and a complete visual gallery for confident browsing." : `A compact ${subCat} sofa with a complete visual gallery for browsing, comparison, and platform listing.`,
     price: 1299 + (i * 50),
     onSale: i % 5 === 0,
     discountPrice: i % 5 === 0 ? Math.round((1299 + (i * 50)) * 0.8) : undefined,
-    images: [
-      `${SOFA_IMAGES[(i * 1) % SOFA_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_1`,
-      `${SOFA_IMAGES[(i * 2) % SOFA_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_2`,
-      `${SOFA_IMAGES[(i * 3) % SOFA_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_3`,
-    ],
+    images: createAssetStack(SOFA_IMAGES, i, 'sofas'),
     category: 'sofas',
     subCategory: subCat,
     videoUrl: i === 0 ? 'https://player.vimeo.com/external/370331493.sd.mp4?s=7b231da3050800c025068a73315a013f9c6d4ba4&profile_id=139&oauth2_token_id=57447761' : undefined,
     stock: 10 + (i % 20),
-    features: ['High-Performance Fabric', 'Eco-Zip System', 'Solid Oak Base'],
-    dimensions: {
-      width: 240 + (i % 20),
-      height: 85,
-      depth: 95
-    }
+    features: ['Compact modular footprint', 'Quick zip conversion', 'High-resilience comfort foam', 'Removable washable covers'],
+    manualUrl: SAMPLE_MANUAL_URL
   };
 });
 
@@ -90,19 +124,17 @@ const bedItems: Product[] = Array.from({ length: 45 }).map((_, i) => {
   const subCat = BED_SUBCATS[i % BED_SUBCATS.length];
   return {
     id: `bed-${i + 1}`,
-    name: `${subCat.charAt(0).toUpperCase() + subCat.slice(1)} Bed ${Math.floor(i / BED_SUBCATS.length) + 1}`,
-    description: `Elegant ${subCat} bed designed for the perfect night's sleep. Premium aesthetics for your bedroom.`,
+    name: i === 0 ? 'Solidwood Cloud Storage Bed' : `${subCat.charAt(0).toUpperCase() + subCat.slice(1)} Bed ${Math.floor(i / BED_SUBCATS.length) + 1}`,
+    description: i === 0 ? 'A warm wood bed system with a complete visual gallery: clean product view, angle studies, bedroom scenes, and storage-function proof.' : `A refined ${subCat} bed with coordinated gallery assets for product, scene, and function views.`,
     price: 599 + (i * 70),
     onSale: i % 6 === 0,
     discountPrice: i % 6 === 0 ? Math.round((599 + (i * 70)) * 0.85) : undefined,
-    images: [
-      `${BED_IMAGES[(i * 1) % BED_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_1`,
-      `${BED_IMAGES[(i * 2) % BED_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_2`,
-    ],
+    images: createAssetStack(BED_IMAGES, i, 'beds'),
     category: 'beds',
     subCategory: subCat,
     stock: 5 + (i % 15),
-    features: ['Comfort oriented', 'Breathable materials', 'Quick assembly']
+    features: ['Quiet reinforced frame', 'Breathable upholstered headboard', 'Fast tool-light assembly', 'Under-bed storage ready'],
+    manualUrl: i % 3 === 0 ? SAMPLE_MANUAL_URL : undefined
   };
 });
 
@@ -116,14 +148,11 @@ const tableItems: Product[] = Array.from({ length: 45 }).map((_, i) => {
     price: 249 + (i * 40),
     onSale: i % 7 === 0,
     discountPrice: i % 7 === 0 ? Math.round((249 + (i * 40)) * 0.75) : undefined,
-    images: [
-      `${TABLE_IMAGES[(i * 1) % TABLE_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_1`,
-      `${TABLE_IMAGES[(i * 2) % TABLE_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_2`,
-    ],
+    images: createAssetStack(TABLE_IMAGES, i, 'tables'),
     category: 'tables',
     subCategory: subCat,
     stock: 15 + (i % 10),
-    features: ['Modern design', 'Easy to clean', 'Robust build']
+    features: ['Scratch-resistant surface', 'Stable weighted base', 'Easy-clean finish', 'Room-scale proportion']
   };
 });
 
@@ -135,14 +164,11 @@ const chairItems: Product[] = Array.from({ length: 45 }).map((_, i) => {
     name: `${subCat.charAt(0).toUpperCase() + subCat.slice(1)} Chair ${Math.floor(i / CHAIR_SUBCATS.length) + 1}`,
     description: `A unique ${subCat} chair that offers both style and ergonomic support.`,
     price: 149 + (i * 30),
-    images: [
-      `${CHAIR_IMAGES[(i * 1) % CHAIR_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_1`,
-      `${CHAIR_IMAGES[(i * 2) % CHAIR_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_2`,
-    ],
+    images: createAssetStack(CHAIR_IMAGES, i, 'chairs'),
     category: 'chairs',
     subCategory: subCat,
     stock: 20 + (i % 20),
-    features: ['Ergonomic', 'Designer look', 'Stable base']
+    features: ['Ergonomic back angle', 'Soft-touch upholstery', 'Stable base geometry', 'Compact dining footprint']
   };
 });
 
@@ -154,13 +180,11 @@ const gardenItems: Product[] = Array.from({ length: 30 }).map((_, i) => {
     name: `Outdoor ${subCat.charAt(0).toUpperCase() + subCat.slice(1)} ${Math.floor(i / GARDEN_SUBCATS.length) + 1}`,
     description: `Weather-resistant ${subCat} for your outdoor living space. Built for durability.`,
     price: 499 + (i * 60),
-    images: [
-      `https://images.unsplash.com/photo-1517409197771-1520a09e8b91?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}`,
-    ],
+    images: createAssetStack(GARDEN_IMAGES, i, 'garden'),
     category: 'garden',
     subCategory: subCat,
     stock: 10 + (i % 10),
-    features: ['Weather proof', 'UV resistant', 'Lightweight']
+    features: ['Weather proof', 'UV resistant', 'Lightweight frame', 'Fast cushion drying']
   };
 });
 
@@ -169,12 +193,10 @@ const lightingItems: Product[] = Array.from({ length: 30 }).map((_, i) => ({
   name: `Luminous Lamp ${i + 1}`,
   description: "Perfectly balanced lighting to set the mood in any space.",
   price: 99 + (i * 30),
-  images: [
-    `${LIGHTING_IMAGES[(i * 1) % LIGHTING_IMAGES.length]}?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}_1`,
-  ],
+  images: createAssetStack(LIGHTING_IMAGES, i, 'lighting'),
   category: 'lighting',
   stock: 25,
-  features: ['Energy efficient', 'Adjustable']
+  features: ['Energy efficient', 'Adjustable brightness', 'Warm ambient tone', 'Compact bedside scale']
 }));
 
 const decorItems: Product[] = Array.from({ length: 30 }).map((_, i) => ({
@@ -182,10 +204,10 @@ const decorItems: Product[] = Array.from({ length: 30 }).map((_, i) => ({
   name: `Designer Decor ${i + 1}`,
   description: "The final touch. Small details that make a big difference.",
   price: 49 + (i * 15),
-  images: [`https://images.unsplash.com/photo-1513519247388-4e284044efd3?auto=format&fit=crop&q=80&w=800&h=800&idx=${i}`],
+  images: createAssetStack(DECOR_IMAGES, i, 'decor'),
   category: 'decor',
   stock: 50,
-  features: ['Handcrafted', 'Premium']
+  features: ['Handcrafted finish', 'Premium texture', 'Shelf-friendly scale', 'Giftable packaging']
 }));
 
 const storageItems: Product[] = Array.from({ length: 30 }).map((_, i) => ({
@@ -193,10 +215,10 @@ const storageItems: Product[] = Array.from({ length: 30 }).map((_, i) => ({
   name: `Storage Unit ${i + 1}`,
   description: "Functional storage solutions for a clean and organized home.",
   price: 299 + (i * 45),
-  images: [`https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=800&h=800&id=${i}`],
+  images: createAssetStack(STORAGE_IMAGES, i, 'storage'),
   category: 'storage',
   stock: 15,
-  features: ['Modular', 'Durable']
+  features: ['Modular compartments', 'Durable daily hardware', 'Cable-friendly routing', 'Small-space organization']
 }));
 
 export const productsData: Product[] = [

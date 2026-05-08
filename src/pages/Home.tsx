@@ -1,10 +1,14 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, ShoppingCart, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { useState, useEffect } from 'react';
 import { useCart } from '../components/CartContext';
 import { usePromotions } from '../hooks/useAdminData';
+import founderElenaImage from '../assets/founder-elena.png';
+import heroModelSceneImage from '../assets/hero-model-scene.png';
+
+const fallbackProductImage = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200&h=1200';
 
 export default function Home() {
   const { products, loading: productsLoading } = useProducts();
@@ -22,15 +26,36 @@ export default function Home() {
       title: "Modular Mastery",
       subtitle: "Explore the perfect fusion of minimalist art and ultimate comfort",
       imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
-      cta: "View Collection",
+      cta: "View Sofas",
       link: "/category/sofas"
     },
     {
       title: "The Founder's Selection",
       subtitle: "Elena Moretti curates the definitive collection for modular living.",
-      imageUrl: "/artifact/839c4e09f5820461bdfa89df8af7df2db1afb96a.png",
+      imageUrl: heroModelSceneImage,
       cta: "Explore Now",
       link: "/category/sofas"
+    },
+    {
+      title: "Compact Sleep",
+      subtitle: "Bedroom pieces shaped for storage, calm, and flexible city living.",
+      imageUrl: "https://images.unsplash.com/photo-1505693415918-91e514789da1?auto=format&fit=crop&q=80&w=2000",
+      cta: "Shop Beds",
+      link: "/category/beds"
+    },
+    {
+      title: "Dining That Fits",
+      subtitle: "Tables with clean proportion for everyday meals and smaller rooms.",
+      imageUrl: "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&q=80&w=2000",
+      cta: "Shop Tables",
+      link: "/category/tables"
+    },
+    {
+      title: "Outdoor Ease",
+      subtitle: "Weather-ready comfort for balconies, patios, and compact gardens.",
+      imageUrl: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=2000",
+      cta: "Shop Garden",
+      link: "/category/garden"
     }
   ];
 
@@ -49,8 +74,16 @@ export default function Home() {
     { name: 'Sofas', slug: 'sofas', image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600' },
     { name: 'Beds', slug: 'beds', image: 'https://images.unsplash.com/photo-1505691938895-1758d7eaa511?auto=format&fit=crop&q=80&w=600' },
     { name: 'Tables', slug: 'tables', image: 'https://images.unsplash.com/photo-1577145745727-42b88d4cfc84?auto=format&fit=crop&q=80&w=600' },
+    { name: 'Chairs', slug: 'chairs', image: 'https://images.unsplash.com/photo-1592078619091-155851b720b0?auto=format&fit=crop&q=80&w=600' },
+    { name: 'Garden', slug: 'garden', image: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=600' },
+    { name: 'Lighting', slug: 'lighting', image: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=600' },
+    { name: 'Storage', slug: 'storage', image: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=80&w=600' },
     { name: 'Decor', slug: 'decor', image: 'https://images.unsplash.com/photo-1513519247388-4e284044efd3?auto=format&fit=crop&q=80&w=600' },
   ];
+
+  const sidebarProducts = products.slice(0, 3);
+  const featuredProducts = products.slice(0, 8);
+  const productImage = (product: { images?: string[] }) => product.images?.[0] || fallbackProductImage;
 
   return (
     <div className="space-y-1 pb-20 bg-brand-gray">
@@ -98,12 +131,29 @@ export default function Home() {
                       to={displayBanners[currentBanner]?.link || "/category/sofas"} 
                       className="inline-flex items-center gap-4 bg-brand-navy text-white px-10 py-5 font-bold uppercase text-[10px] tracking-widest hover:bg-brand-beige transition-all shadow-2xl hover:-translate-y-1"
                     >
-                      Explore Selection <ArrowRight className="w-4 h-4" />
+                      {displayBanners[currentBanner]?.cta || 'Explore Selection'} <ArrowRight className="w-4 h-4" />
                     </Link>
                   </motion.div>
                 </div>
               </motion.div>
             </AnimatePresence>
+
+            <button
+              type="button"
+              onClick={() => setCurrentBanner((currentBanner - 1 + displayBanners.length) % displayBanners.length)}
+              className="absolute left-6 top-1/2 -translate-y-1/2 z-20 h-11 w-11 rounded-full bg-white/80 border border-white/60 text-brand-navy shadow-sm backdrop-blur hover:bg-white transition-colors flex items-center justify-center"
+              aria-label="Previous banner"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentBanner((currentBanner + 1) % displayBanners.length)}
+              className="absolute right-6 top-1/2 -translate-y-1/2 z-20 h-11 w-11 rounded-full bg-white/80 border border-white/60 text-brand-navy shadow-sm backdrop-blur hover:bg-white transition-colors flex items-center justify-center"
+              aria-label="Next banner"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
             
             {/* Banner Indicators */}
             <div className="absolute bottom-8 right-8 flex gap-2 z-10">
@@ -122,7 +172,7 @@ export default function Home() {
             {activeCardPromos.length > 0 ? (
               activeCardPromos.slice(0, 2).map((promo, idx) => (
                 <div key={promo.id} className={`flex-1 relative overflow-hidden group ${idx === 1 ? 'bg-brand-navy text-white' : 'bg-white text-brand-navy'}`}>
-                   <img src={promo.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-40 transition-opacity duration-700" />
+                   <img src={promo.imageUrl || fallbackProductImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-40 transition-opacity duration-700" />
                    <div className="relative p-10 h-full flex flex-col justify-center z-10">
                       <span className="text-brand-beige font-bold uppercase text-[10px] tracking-[0.3em] mb-4">Featured / {promo.type}</span>
                       <h2 className="text-2xl font-brand font-bold mb-4 uppercase leading-none tracking-tighter">{promo.title}</h2>
@@ -133,25 +183,46 @@ export default function Home() {
                    </div>
                 </div>
               ))
+            ) : sidebarProducts.length > 0 ? (
+              sidebarProducts.map((product, idx) => (
+                <Link
+                  key={product.id}
+                  to={`/product/${product.id}`}
+                  className={`flex-1 relative overflow-hidden group ${idx === 1 ? 'bg-brand-navy text-white' : 'bg-white text-brand-navy'}`}
+                >
+                  <img src={productImage(product)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-35 transition-opacity duration-700" />
+                  <div className="relative p-8 h-full flex flex-col justify-center z-10">
+                    <span className="text-brand-beige font-bold uppercase text-[10px] tracking-[0.3em] mb-3">Featured Product</span>
+                    <h2 className="text-2xl font-brand font-bold mb-3 uppercase leading-none tracking-tighter">{product.name}</h2>
+                    <p className="text-sm opacity-70 mb-5 font-medium capitalize">{product.category}</p>
+                    <span className="text-[10px] font-bold border-b border-brand-beige uppercase tracking-widest hover:text-brand-beige transition-colors inline-block w-fit">
+                      View Product
+                    </span>
+                  </div>
+                </Link>
+              ))
             ) : (
               <>
-                <div className="flex-1 bg-white p-10 flex flex-col justify-center border-l-4 border-l-brand-beige">
-                  <span className="text-brand-beige font-bold uppercase text-[10px] tracking-widest mb-2">Limited Series</span>
-                  <h2 className="text-2xl font-brand font-bold text-brand-navy mb-2 uppercase leading-tight">Master <br />Suites</h2>
-                  <p className="text-sm text-brand-navy/60 mb-6 font-medium">Curated comfort for the most intimate spaces.</p>
-                  <Link to="/category/beds" className="text-[10px] font-bold border-b border-brand-beige uppercase tracking-widest hover:opacity-70 transition-opacity inline-block w-fit">
-                    View Gallery
-                  </Link>
-                </div>
-                <div className="flex-1 bg-brand-navy text-white p-10 flex flex-col justify-center overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Sparkles className="w-20 h-20" />
+                <div className="flex-1 bg-white p-10 flex flex-col justify-center border-l-4 border-l-brand-beige relative overflow-hidden">
+                  <img src="https://images.unsplash.com/photo-1505693415918-91e514789da1?auto=format&fit=crop&q=80&w=900" alt="" className="absolute inset-0 w-full h-full object-cover opacity-15" />
+                  <div className="relative z-10">
+                    <span className="text-brand-beige font-bold uppercase text-[10px] tracking-widest mb-2 block">Limited Series</span>
+                    <h2 className="text-2xl font-brand font-bold text-brand-navy mb-2 uppercase leading-tight">Master <br />Suites</h2>
+                    <p className="text-sm text-brand-navy/60 mb-6 font-medium">Curated comfort for the most intimate spaces.</p>
+                    <Link to="/category/beds" className="text-[10px] font-bold border-b border-brand-beige uppercase tracking-widest hover:opacity-70 transition-opacity inline-block w-fit">
+                      View Gallery
+                    </Link>
                   </div>
-                  <h2 className="text-2xl font-brand font-bold mb-2 text-brand-beige uppercase leading-tight">The Archive</h2>
-                  <p className="text-sm opacity-60 mb-6 font-medium">Timeless pieces reaching their final availability.</p>
-                  <Link to="/category/sale" className="inline-block border border-white/20 text-white px-6 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-brand-beige hover:border-brand-beige transition-all text-center">
-                    Shop Archive
-                  </Link>
+                </div>
+                <div className="flex-1 bg-brand-navy text-white p-10 flex flex-col justify-center overflow-hidden group relative">
+                  <img src="https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&q=80&w=900" alt="" className="absolute inset-0 w-full h-full object-cover opacity-15 group-hover:opacity-25 transition-opacity" />
+                  <div className="relative z-10">
+                    <h2 className="text-2xl font-brand font-bold mb-2 text-brand-beige uppercase leading-tight">The Archive</h2>
+                    <p className="text-sm opacity-60 mb-6 font-medium">Timeless pieces reaching their final availability.</p>
+                    <Link to="/category/sale" className="inline-block border border-white/20 text-white px-6 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-brand-beige hover:border-brand-beige transition-all text-center">
+                      Shop Archive
+                    </Link>
+                  </div>
                 </div>
               </>
             )}
@@ -236,22 +307,11 @@ export default function Home() {
               </div>
             </div>
             <div className="aspect-[4/5] lg:aspect-auto relative min-h-[600px] overflow-hidden">
-              {/* Pose 1: Standing Pose (from 4x2 standing grid) */}
               <div className="absolute inset-0 w-full h-full bg-brand-gray/20">
                 <img 
-                  src="/artifact/b801a6b0c20a67232f05fe31707fc84a569769ed" 
-                  alt="Elena Moretti - Founder Standing" 
-                  className="w-[400%] h-[200%] max-w-none object-cover"
-                  style={{ objectPosition: '0% 0%' }}
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) {
-                      parent.style.backgroundImage = 'url(https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=800)';
-                      parent.style.backgroundSize = 'cover';
-                    }
-                  }}
+                  src={founderElenaImage}
+                  alt="Elena Moretti - Founder Portrait"
+                  className="w-full h-full object-cover object-top"
                 />
               </div>
               <div className="absolute inset-0 bg-gradient-to-l from-brand-navy/0 to-transparent" />
@@ -318,11 +378,11 @@ export default function Home() {
           <span className="text-brand-beige text-[10px] uppercase tracking-[0.4em] font-bold block mb-4">The Selection</span>
           <h2 className="text-4xl font-brand font-bold uppercase tracking-tighter text-brand-navy">Most Desired Objects</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {productsLoading ? (
-            [1,2,3].map(i => <div key={i} className="aspect-[4/5] bg-brand-gray animate-pulse rounded-[3rem]" />)
+            [1,2,3,4,5,6,7,8].map(i => <div key={i} className="aspect-[4/5] bg-brand-gray animate-pulse rounded-[3rem]" />)
           ) : (
-            products.slice(0, 3).map((product, i) => (
+            featuredProducts.map((product, i) => (
               <motion.div 
                 key={product.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -334,7 +394,7 @@ export default function Home() {
                 <Link to={`/product/${product.id}`} className="block">
                   <div className="aspect-[4/5] bg-white overflow-hidden mb-8 shadow-sm border border-brand-gray relative group rounded-[3rem]">
                     <img 
-                      src={product.images[0]} 
+                      src={productImage(product)}
                       alt={product.name} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" 
                     />

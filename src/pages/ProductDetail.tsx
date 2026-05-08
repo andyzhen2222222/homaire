@@ -2,20 +2,15 @@ import { useParams, Link } from 'react-router-dom';
 import { useProduct, useProducts } from '../hooks/useProducts';
 import { useCart } from '../components/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
-  ArrowRight,
   Check,
   Download,
   FileText,
   Minus,
-  PackageCheck,
   Play,
   Plus,
-  RotateCcw,
-  ShieldCheck,
   Sparkles,
-  Truck,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 
@@ -24,18 +19,6 @@ type ProductMedia = {
   url: string;
   label: string;
 };
-
-const assetLabels = [
-  'White Background',
-  'Angle View',
-  'Scene View',
-  'Lifestyle Scene',
-  'Function Detail',
-  'Dimension Proof',
-  'Scale Reference',
-  'Platform Support',
-  'Customer Context',
-];
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -50,7 +33,7 @@ export default function ProductDetail() {
     return <div className="h-screen flex items-center justify-center font-black uppercase tracking-tighter text-2xl animate-pulse">Loading...</div>;
   }
 
-  const images = product.images.length ? product.images : ['https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200'];
+  const images = product.images?.length ? product.images : ['https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200'];
 
   const imageAt = (index: number) => images[index % images.length];
 
@@ -59,29 +42,40 @@ export default function ProductDetail() {
     ...images.map((url, index) => ({
       type: 'image' as const,
       url,
-      label: assetLabels[index] || `Detail ${index + 1}`,
+      label: `Image ${String(index + 1).padStart(2, '0')}`,
     })),
   ];
 
   const currentMedia = media[activeMedia] || media[0];
 
-  const assetPlan = useMemo(() => ([
-    { title: 'Main Visual', count: 1, image: imageAt(0), note: 'Clear hero recognition for storefront and marketplace use.' },
-    { title: 'Angle View', count: 1, image: imageAt(1), note: 'Shape, silhouette, and profile from the buyer-facing angle.' },
-    { title: 'Scene Views', count: 2, image: imageAt(2), note: 'Room-scale context that shows proportion and styling range.' },
-    { title: 'Function Detail', count: 1, image: imageAt(4), note: 'Transformation, modularity, or material behavior in close view.' },
-    { title: 'Dimension Proof', count: 2, image: imageAt(5), note: 'Size confidence before purchase and platform listing support.' },
-    { title: 'Platform Research', count: 2, image: imageAt(7), note: 'Evidence assets for channels, ads, and product education.' },
-  ]), [product.id, product.images.join('|')]);
+  const coreFeatures = product.features?.length
+    ? product.features
+    : ['Compact Footprint', 'Fast Assembly', 'Premium Comfort'];
 
-  const detailModules = [
-    { label: 'Core Selling Points', value: product.features?.length || 3 },
-    { label: 'Human Context', value: 1 },
-    { label: 'Usage Scene', value: 1 },
-    { label: 'Install Docs', value: 2 },
-    { label: 'After-sales', value: 1 },
-    { label: 'Brand Assets', value: 2 },
-  ];
+  const fallbackDetailHtml = `
+    <section class="detail-block">
+      <div>
+        <img src="${imageAt(1)}" alt="${product.name} lifestyle view" />
+      </div>
+      <div>
+        <p class="eyebrow">Living Scenario</p>
+        <h3>Designed around real rooms</h3>
+        <p>${product.description}</p>
+      </div>
+    </section>
+    <section class="detail-block reverse">
+      <div>
+        <img src="${imageAt(2)}" alt="${product.name} material view" />
+      </div>
+      <div>
+        <p class="eyebrow">Material & Comfort</p>
+        <h3>Comfort that works every day</h3>
+        <p>Soft upholstery, compact proportions, and easy-to-live-with construction make this piece suitable for apartments, guest rooms, and flexible living spaces.</p>
+      </div>
+    </section>
+  `;
+
+  const detailHtml = product.detailHtml?.trim() || fallbackDetailHtml;
 
   const recommendations = relatedProducts
     .filter((item) => item.id !== product.id)
@@ -111,7 +105,7 @@ export default function ProductDetail() {
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative aspect-[4/3] overflow-hidden bg-brand-gray border border-brand-gray rounded-3xl"
+              className="relative aspect-square overflow-hidden bg-brand-gray border border-brand-gray rounded-3xl"
             >
               {currentMedia.type === 'video' ? (
                 <video
@@ -161,14 +155,36 @@ export default function ProductDetail() {
 
             <p className="text-lg text-brand-navy/65 leading-relaxed font-medium mb-8">{product.description}</p>
 
-            <div className="grid grid-cols-2 gap-3 mb-8">
-              {detailModules.map((item) => (
-                <div key={item.label} className="border border-brand-gray rounded-xl px-4 py-3 bg-white">
-                  <p className="text-[9px] uppercase tracking-widest font-bold text-brand-navy/35 mb-1">{item.label}</p>
-                  <p className="text-2xl font-brand font-bold tracking-tighter text-brand-navy">{item.value}</p>
+            <div className="space-y-3 mb-8">
+              {coreFeatures.slice(0, 5).map((feature) => (
+                <div key={feature} className="flex items-center gap-4 border border-brand-gray rounded-xl px-4 py-3 bg-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-beige/10 text-brand-beige">
+                    <Check className="w-4 h-4" />
+                  </span>
+                  <span className="text-sm font-black uppercase tracking-widest text-brand-navy leading-snug">{feature}</span>
                 </div>
               ))}
             </div>
+
+            {product.manualUrl && (
+              <a
+                href={product.manualUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mb-8 flex items-center justify-between gap-4 border border-brand-beige/30 bg-brand-beige/5 rounded-xl px-5 py-4 text-brand-navy hover:border-brand-beige hover:bg-brand-beige/10 transition-colors"
+              >
+                <span className="flex items-center gap-3 min-w-0">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-brand-beige">
+                    <FileText className="w-5 h-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-black uppercase tracking-widest text-brand-navy">Installation PDF</span>
+                    <span className="block text-[10px] font-bold uppercase tracking-widest text-brand-navy/35 mt-1 truncate">Download assembly guide</span>
+                  </span>
+                </span>
+                <Download className="w-4 h-4 shrink-0 text-brand-beige" />
+              </a>
+            )}
 
             <div className="flex items-baseline gap-4 mb-8">
               <span className={`text-5xl font-brand font-bold ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'} tracking-tighter`}>
@@ -214,38 +230,15 @@ export default function ProductDetail() {
 
       <section className="border-y border-brand-gray bg-brand-gray/35">
         <div className="max-w-7xl mx-auto px-4 py-20">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.72fr_1.28fr] gap-12 items-start">
             <div>
-              <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Asset System</span>
-              <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none">Product Visual Stack</h2>
+              <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Details</span>
+              <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none">Product Story</h2>
             </div>
-            <p className="max-w-lg text-sm md:text-base text-brand-navy/60 font-medium leading-relaxed">
-              The page is arranged around the material set used for this product: main visual, angle proof, scene context, function, dimensions, video, and platform support assets.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {assetPlan.map((asset, index) => (
-              <motion.article
-                key={asset.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-80px' }}
-                transition={{ delay: index * 0.04 }}
-                className={`group overflow-hidden bg-white border border-brand-gray rounded-2xl ${index === 0 ? 'md:col-span-2 xl:col-span-1' : ''}`}
-              >
-                <div className="aspect-[4/3] overflow-hidden bg-brand-gray">
-                  <img src={asset.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy">{asset.title}</h3>
-                    <span className="w-7 h-7 rounded-full bg-brand-navy text-white text-[10px] font-black flex items-center justify-center">{asset.count}</span>
-                  </div>
-                  <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">{asset.note}</p>
-                </div>
-              </motion.article>
-            ))}
+            <div
+              className="space-y-6 text-brand-navy/65 font-medium leading-relaxed text-base md:text-lg [&_.detail-block]:grid [&_.detail-block]:grid-cols-1 [&_.detail-block]:md:grid-cols-2 [&_.detail-block]:gap-6 [&_.detail-block]:items-center [&_.detail-block]:bg-white [&_.detail-block]:border [&_.detail-block]:border-brand-gray [&_.detail-block]:rounded-3xl [&_.detail-block]:overflow-hidden [&_.detail-block.reverse>div:first-child]:md:order-2 [&_img]:w-full [&_img]:aspect-square [&_img]:object-cover [&_h2]:font-brand [&_h2]:text-4xl [&_h2]:font-bold [&_h2]:uppercase [&_h2]:tracking-tighter [&_h2]:text-brand-navy [&_h2]:mb-6 [&_h3]:font-brand [&_h3]:text-3xl [&_h3]:font-bold [&_h3]:uppercase [&_h3]:tracking-tighter [&_h3]:text-brand-navy [&_h3]:mb-5 [&_p]:mb-6 [&_.eyebrow]:text-brand-beige [&_.eyebrow]:text-[10px] [&_.eyebrow]:font-black [&_.eyebrow]:uppercase [&_.eyebrow]:tracking-[0.35em] [&_.eyebrow]:mb-4 [&_.detail-block>div:not(:has(img))]:p-8 [&_.detail-block>div:not(:has(img))]:md:p-10 [&_ul]:grid [&_ul]:grid-cols-1 [&_ul]:md:grid-cols-2 [&_ul]:gap-3 [&_li]:list-none [&_li]:rounded-xl [&_li]:border [&_li]:border-brand-gray [&_li]:px-5 [&_li]:py-4 [&_li]:text-sm [&_li]:font-black [&_li]:uppercase [&_li]:tracking-widest [&_li]:text-brand-navy"
+              dangerouslySetInnerHTML={{ __html: detailHtml }}
+            />
           </div>
         </div>
       </section>
@@ -259,7 +252,7 @@ export default function ProductDetail() {
               Instead of burying benefits under generic specs, the page gives each proof asset a job: show the silhouette, prove the function, validate size, and make purchase risk feel smaller.
             </p>
             <div className="space-y-4">
-              {(product.features || ['Compact Footprint', 'Fast Assembly', 'Premium Comfort']).map((feature) => (
+              {coreFeatures.map((feature) => (
                 <div key={feature} className="flex items-center gap-4 border-b border-brand-gray py-4">
                   <Check className="w-5 h-5 text-brand-beige shrink-0" />
                   <span className="text-sm font-black uppercase tracking-widest text-brand-navy">{feature}</span>
@@ -285,88 +278,13 @@ export default function ProductDetail() {
         </div>
       </section>
 
-      <section className="bg-brand-charcoal text-white py-28 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Size Confidence</span>
-            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Measured For Real Rooms</h2>
-            <p className="text-white/65 text-lg leading-relaxed font-medium mb-10">
-              Dimension assets should sit close to the purchase area and again in the proof section, because size is one of the highest-friction decisions for furniture.
-            </p>
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { label: 'Width', value: product.dimensions?.width || 0 },
-                { label: 'Height', value: product.dimensions?.height || 0 },
-                { label: 'Depth', value: product.dimensions?.depth || 0 },
-              ].map((item) => (
-                <div key={item.label} className="border border-white/10 rounded-2xl p-5">
-                  <p className="text-[9px] uppercase tracking-widest font-bold text-white/35 mb-2">{item.label}</p>
-                  <p className="text-3xl font-brand font-bold tracking-tighter">{item.value}<span className="text-sm text-brand-beige ml-1">cm</span></p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative">
-            <div className="aspect-[5/4] rounded-3xl overflow-hidden bg-white/5 border border-white/10">
-              <img src={imageAt(5)} alt="" className="w-full h-full object-cover opacity-90" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 py-28">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <span className="text-brand-beige text-[11px] font-black uppercase tracking-[0.45em] block mb-4">Support</span>
-            <h2 className="text-4xl md:text-5xl font-brand font-bold uppercase tracking-tighter leading-none">Install, Service, Brand</h2>
-          </div>
-
-          <a href="#" className="group border border-brand-gray rounded-2xl p-8 hover:border-brand-beige transition-colors">
-            <FileText className="w-8 h-8 text-brand-beige mb-8" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Installation Document</h3>
-            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium mb-8">Assembly manual and care checkpoints for the product package.</p>
-            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-navy group-hover:text-brand-beige">
-              Download <Download className="w-4 h-4" />
-            </span>
-          </a>
-
-          <a href="#" className="group border border-brand-gray rounded-2xl p-8 hover:border-brand-beige transition-colors">
-            <Play className="w-8 h-8 text-brand-beige mb-8" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Installation Video</h3>
-            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium mb-8">Video walkthrough for setup, conversion, and feature explanation.</p>
-            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-navy group-hover:text-brand-beige">
-              Watch <ArrowRight className="w-4 h-4" />
-            </span>
-          </a>
-
-          <div className="border border-brand-gray rounded-2xl p-8">
-            <ShieldCheck className="w-8 h-8 text-brand-beige mb-8" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">After-sales Terms</h3>
-            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">365-day worry-free returns, quality guarantee, and responsive support for every order.</p>
-          </div>
-
-          <div className="border border-brand-gray rounded-2xl p-8">
-            <RotateCcw className="w-8 h-8 text-brand-beige mb-8" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Usage Scenario</h3>
-            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">Compact apartment, guest-room conversion, and flexible living-room planning.</p>
-          </div>
-
-          <div className="border border-brand-gray rounded-2xl p-8">
-            <PackageCheck className="w-8 h-8 text-brand-beige mb-8" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-brand-navy mb-3">Platform Proof</h3>
-            <p className="text-sm text-brand-navy/55 leading-relaxed font-medium">Gallery assets are structured for storefront, ads, marketplace, and customer service use.</p>
-          </div>
-        </div>
-      </section>
-
       <section className="bg-brand-gray/35 border-y border-brand-gray">
         <div className="max-w-7xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-14 items-center">
           <div>
             <Logo size="lg" className="mb-10" />
-            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Built For Smaller Spaces, Not Smaller Lives</h2>
+            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Make Room For The Life You Want</h2>
             <p className="text-lg text-brand-navy/60 leading-relaxed font-medium">
-              ZipSofa is positioned around transformation: a compact object that carries comfort, flexibility, and visual calm into everyday rooms.
+              ZipSofa creates flexible furniture for homes that need to work harder. Every piece is designed to save space, feel comfortable, and adapt to the way real rooms change through the day.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-5">

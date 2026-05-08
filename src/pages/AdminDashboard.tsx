@@ -383,7 +383,12 @@ function ImportModal({ onImport, onClose }: { onImport: (data: any[]) => Promise
       category: (item.category || item.Category || 'sofas').toLowerCase(),
       stock: Number(item.stock || item.Stock || 0),
       description: item.description || item.Description || '',
+      detailHtml: item.detailHtml || item.DetailHtml || item.html || item.HTML || '',
       images: typeof item.images === 'string' ? item.images.split(',').map((s: string) => s.trim()) : (Array.isArray(item.images) ? item.images : []),
+      features: typeof item.features === 'string' ? item.features.split(/[\n,]/).map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(item.features) ? item.features : []),
+      subCategory: item.subCategory || item.SubCategory || '',
+      videoUrl: item.videoUrl || item.VideoUrl || item.video || item.Video || '',
+      manualUrl: item.manualUrl || item.ManualUrl || item.manual || item.Manual || '',
       onSale: Boolean(item.onSale || item.OnSale || false),
       discountPrice: Number(item.discountPrice || item.DiscountPrice || 0)
     }));
@@ -596,7 +601,9 @@ function StoreSettingsForm({ config, onSave }: { config?: StoreConfig, onSave: (
 
 function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (data: Partial<Product>) => void }) {
   const imagesFileInputRef = useRef<HTMLInputElement>(null);
+  const manualFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadingManual, setUploadingManual] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [newImageUrl, setNewImageUrl] = useState('');
 
@@ -604,8 +611,13 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
     name: '',
     price: 0,
     description: '',
+    detailHtml: '',
     category: 'sofas',
+    subCategory: '',
     images: [],
+    features: [],
+    videoUrl: '',
+    manualUrl: '',
     stock: 0,
     onSale: false,
     discountPrice: 0
@@ -649,6 +661,26 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
     }
   };
 
+  const uploadManualToStorage = async (file: File) => {
+    setUploadingManual(true);
+    setUploadError(null);
+    try {
+      const productFolder = initialData?.id ? `products/${initialData.id}` : 'products/drafts';
+      const id = makeUploadId();
+      const safeName = (file.name || 'manual.pdf').replace(/[^a-zA-Z0-9._-]+/g, '-');
+      const path = `${productFolder}/manuals/${id}-${safeName}`;
+      const objectRef = storageRef(storage, path);
+      await uploadBytes(objectRef, file);
+      const url = await getDownloadURL(objectRef);
+      setFormData((prev) => ({ ...prev, manualUrl: url }));
+    } catch (e: any) {
+      setUploadError(e?.message || 'Manual upload failed');
+    } finally {
+      setUploadingManual(false);
+      if (manualFileInputRef.current) manualFileInputRef.current.value = '';
+    }
+  };
+
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-12">
       <div className="grid grid-cols-2 gap-10">
@@ -660,10 +692,47 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
               <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Master Narrative" rows={4} className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
               <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige cursor-pointer">
                 <option value="sofas">Sofas</option>
-                <option value="sectional">Sectionals</option>
-                <option value="armchair">Armchairs</option>
+                <option value="beds">Beds</option>
+                <option value="tables">Tables</option>
+                <option value="chairs">Chairs</option>
+                <option value="garden">Garden</option>
+                <option value="lighting">Lighting</option>
+                <option value="storage">Storage</option>
+                <option value="decor">Decor</option>
               </select>
+              <input type="text" value={formData.subCategory || ''} onChange={e => setFormData({...formData, subCategory: e.target.value})} placeholder="Series / Subcategory (optional)" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
             </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Core Selling Points</label>
+            <textarea
+              value={(formData.features || []).join('\n')}
+              onChange={(e) => setFormData({
+                ...formData,
+                features: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean),
+              })}
+              placeholder={'One selling point per line\nCompact modular footprint\nQuick zip conversion'}
+              rows={5}
+              className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+            />
+            <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
+              These appear in the first screen of the product detail page.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Detail HTML</label>
+            <textarea
+              value={formData.detailHtml || ''}
+              onChange={(e) => setFormData({ ...formData, detailHtml: e.target.value })}
+              placeholder={'<section class="detail-block">\n  <div><img src="https://..." alt="Lifestyle scene" /></div>\n  <div>\n    <p class="eyebrow">Living Scenario</p>\n    <h3>Designed around real rooms</h3>\n    <p>Write the product story here.</p>\n  </div>\n</section>\n\n<section class="detail-block reverse">\n  <div><img src="https://..." alt="Material detail" /></div>\n  <div>\n    <p class="eyebrow">Material & Comfort</p>\n    <h3>Comfort that works every day</h3>\n    <p>Write a second image-text module here.</p>\n  </div>\n</section>'}
+              rows={8}
+              className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-mono tracking-wide text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+            />
+            <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
+              Optional. If empty, the storefront builds this section from description and selling points.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -687,7 +756,7 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
           <div className="bg-brand-gray/40 border border-brand-gray rounded-[2rem] p-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-navy/40 mb-3">Lean Listing Mode</p>
             <p className="text-sm leading-relaxed text-brand-navy/60 font-medium">
-              This form only asks for fields that directly affect the storefront: product copy, category, price, stock, sale status, and gallery assets.
+              This form only asks for fields that directly affect the storefront: product copy, category, core selling points, price, stock, sale status, gallery, video, and optional installation PDF.
             </p>
           </div>
         </div>
@@ -696,6 +765,12 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
 	          <div>
 	            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Visual Documentation</label>
 	            <div className="space-y-4">
+                <div className="bg-brand-beige/5 border border-brand-beige/20 rounded-2xl p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-navy/50 mb-2">Image Standard</p>
+                  <p className="text-xs leading-relaxed text-brand-navy/55 font-medium">
+                    Recommended: square 1:1 JPG/PNG, at least 1600 x 1600 px, product centered with comfortable margins. Non-square images will be center-cropped on the storefront.
+                  </p>
+                </div>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -776,10 +851,77 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
                 </div>
 
                 <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-                  Tip: Upload 6-10 images for a richer product detail page.
+                  Upload 6-10 square images for the strongest product detail layout.
                 </p>
 	            </div>
 	          </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Product Video</label>
+              <input
+                type="url"
+                value={formData.videoUrl || ''}
+                onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
+                placeholder="Paste Product Video URL (optional)"
+                className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+              />
+              <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
+                Optional. If present, it appears as the first selectable media item.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Installation PDF</label>
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <input
+                    type="url"
+                    value={formData.manualUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, manualUrl: e.target.value })}
+                    placeholder="Paste PDF Download URL (optional)"
+                    className="flex-grow bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => manualFileInputRef.current?.click()}
+                    disabled={uploadingManual}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-brand-gray text-[10px] font-bold uppercase tracking-widest text-brand-navy hover:border-brand-beige transition-colors disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" />
+                    {uploadingManual ? 'Uploading...' : 'Upload PDF'}
+                  </button>
+                </div>
+                <input
+                  ref={manualFileInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    void uploadManualToStorage(file);
+                  }}
+                />
+                {formData.manualUrl && (
+                  <div className="flex items-center justify-between gap-4 bg-brand-gray/40 border border-brand-gray rounded-xl px-4 py-3">
+                    <a href={formData.manualUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-[10px] font-bold uppercase tracking-widest text-brand-navy/50 hover:text-brand-navy">
+                      {formData.manualUrl}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, manualUrl: '' }))}
+                      className="shrink-0 text-brand-navy/30 hover:text-red-600"
+                      aria-label="Remove manual URL"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
+                  Optional. If empty, the product page will hide the PDF download button.
+                </p>
+              </div>
+            </div>
 
         </div>
       </div>
@@ -794,6 +936,9 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
 }
 
 function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
+  const promoImageFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingPromoImage, setUploadingPromoImage] = useState(false);
+  const [promoUploadError, setPromoUploadError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Promotion>>({
     title: '',
     subtitle: '',
@@ -803,6 +948,33 @@ function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
     type: 'hero',
     priority: 1
   });
+
+  const makeUploadId = () => {
+    try {
+      const c: any = (globalThis as any).crypto;
+      return c?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    } catch {
+      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+  };
+
+  const uploadPromoImageToStorage = async (file: File) => {
+    setUploadingPromoImage(true);
+    setPromoUploadError(null);
+    try {
+      const id = makeUploadId();
+      const safeName = (file.name || 'promo-image').replace(/[^a-zA-Z0-9._-]+/g, '-');
+      const objectRef = storageRef(storage, `promotions/${id}-${safeName}`);
+      await uploadBytes(objectRef, file);
+      const url = await getDownloadURL(objectRef);
+      setFormData((prev) => ({ ...prev, imageUrl: url }));
+    } catch (e: any) {
+      setPromoUploadError(e?.message || 'Promotion image upload failed');
+    } finally {
+      setUploadingPromoImage(false);
+      if (promoImageFileInputRef.current) promoImageFileInputRef.current.value = '';
+    }
+  };
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-8">
@@ -822,7 +994,42 @@ function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
       </div>
       <div>
         <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Core Asset URL</label>
-        <input required type="text" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+        <div className="flex gap-3">
+          <input required type="text" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} className="flex-grow bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+          <button
+            type="button"
+            onClick={() => promoImageFileInputRef.current?.click()}
+            disabled={uploadingPromoImage}
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-brand-gray text-[10px] font-bold uppercase tracking-widest text-brand-navy hover:border-brand-beige transition-colors disabled:opacity-50"
+          >
+            <ImageIcon className="w-4 h-4" />
+            {uploadingPromoImage ? 'Uploading...' : 'Upload'}
+          </button>
+        </div>
+        <input
+          ref={promoImageFileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            void uploadPromoImageToStorage(file);
+          }}
+        />
+        {promoUploadError && (
+          <div className="mt-3 text-[10px] font-bold uppercase tracking-widest text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
+            {promoUploadError}
+          </div>
+        )}
+        {formData.imageUrl && (
+          <div className="mt-4 aspect-[16/9] overflow-hidden rounded-2xl bg-brand-gray border border-brand-gray">
+            <img src={formData.imageUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
+          Hero images work best at 16:9 or wider. Promo cards can use square or portrait crops.
+        </p>
       </div>
       <div>
         <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Sub-Narrative</label>
