@@ -1,29 +1,41 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Order, Promotion, Product, StoreConfig } from '../types';
+import {
+  subscribeLocalDb,
+  getLocalOrdersSorted,
+  localUpdateOrderStatus,
+  getLocalPromotionsSorted,
+  localTogglePromotion,
+  localDeletePromotion,
+  localAddPromotion,
+  localAddProduct,
+  localUpdateProduct,
+  localDeleteProduct,
+  localBulkAddProducts,
+  getLocalConfig,
+  localUpdateConfig,
+} from '../lib/localDb';
+import { handleFirestoreError, OperationType } from '../lib/dataErrors';
 
 export function useOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-      setOrders(fetchedOrders);
+    const sync = () => {
+      setOrders(getLocalOrdersSorted());
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'orders');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    };
+    sync();
+    return subscribeLocalDb(sync);
   }, []);
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
-    const orderRef = doc(db, 'orders', orderId);
-    await updateDoc(orderRef, { status });
+    try {
+      localUpdateOrderStatus(orderId, status);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+    }
   };
 
   return { orders, loading, updateOrderStatus };
@@ -34,22 +46,17 @@ export function usePromotions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'promotions'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedPromos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Promotion));
-      setPromotions(fetchedPromos);
+    const sync = () => {
+      setPromotions(getLocalPromotionsSorted());
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'promotions');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    };
+    sync();
+    return subscribeLocalDb(sync);
   }, []);
 
   const togglePromotion = async (id: string, active: boolean) => {
     try {
-      await updateDoc(doc(db, 'promotions', id), { active });
+      localTogglePromotion(id, active);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `promotions/${id}`);
     }
@@ -57,7 +64,7 @@ export function usePromotions() {
 
   const deletePromotion = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'promotions', id));
+      localDeletePromotion(id);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `promotions/${id}`);
     }
@@ -65,10 +72,7 @@ export function usePromotions() {
 
   const addPromotion = async (promo: Omit<Promotion, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'promotions'), {
-        ...promo,
-        createdAt: serverTimestamp()
-      });
+      localAddPromotion(promo);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'promotions');
     }
@@ -80,11 +84,7 @@ export function usePromotions() {
 export function useAdminActions() {
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'products'), {
-        ...product,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      localAddProduct(product);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'products');
     }
@@ -92,10 +92,7 @@ export function useAdminActions() {
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     try {
-      await updateDoc(doc(db, 'products', id), {
-        ...updates,
-        updatedAt: serverTimestamp()
-      });
+      localUpdateProduct(id, updates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
     }
@@ -103,7 +100,7 @@ export function useAdminActions() {
 
   const deleteProduct = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'products', id));
+      localDeleteProduct(id);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
@@ -111,16 +108,7 @@ export function useAdminActions() {
 
   const bulkAddProducts = async (products: Omit<Product, 'id' | 'createdAt'>[]) => {
     try {
-      const batch = writeBatch(db);
-      products.forEach(product => {
-        const newDocRef = doc(collection(db, 'products'));
-        batch.set(newDocRef, {
-          ...product,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      });
-      await batch.commit();
+      localBulkAddProducts(products);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'products');
     }
@@ -134,22 +122,17 @@ export function useStoreConfig() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'config', 'global'), (doc) => {
-      if (doc.exists()) {
-        setConfig({ id: doc.id, ...doc.data() } as StoreConfig);
-      }
+    const sync = () => {
+      setConfig(getLocalConfig());
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'config/global');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    };
+    sync();
+    return subscribeLocalDb(sync);
   }, []);
 
   const updateConfig = async (updates: Partial<StoreConfig>) => {
     try {
-      await updateDoc(doc(db, 'config', 'global'), updates);
+      localUpdateConfig(updates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'config/global');
     }

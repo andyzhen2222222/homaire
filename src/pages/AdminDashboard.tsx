@@ -4,28 +4,27 @@ import { useOrders, usePromotions, useAdminActions } from '../hooks/useAdminData
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { 
   Plus, Trash2, Edit, Package, DollarSign, ShoppingBag, 
   Users, LayoutDashboard, Search, X, Check, ArrowRight,
   TrendingUp, Clock, AlertCircle, Eye, Tag, Image as ImageIcon,
   ChevronRight, Filter, Download, MoreHorizontal, Settings
 } from 'lucide-react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Product, Order, Promotion, StoreConfig } from '../types';
 import { useStoreConfig } from '../hooks/useAdminData';
-import { storage } from '../lib/firebase';
 import { SiteSettingsForm } from '../components/admin/SiteSettingsForm';
+import { fileToDataUrl } from '../lib/fileToDataUrl';
 
 export default function AdminDashboard() {
-  const { products, loading: productsLoading } = useProducts();
-  const { orders, loading: ordersLoading, updateOrderStatus } = useOrders();
-  const { promotions, loading: promosLoading, togglePromotion, deletePromotion, addPromotion } = usePromotions();
+  const { products } = useProducts();
+  const { orders, updateOrderStatus } = useOrders();
+  const { promotions, togglePromotion, deletePromotion, addPromotion } = usePromotions();
   const { addProduct, bulkAddProducts, updateProduct, deleteProduct } = useAdminActions();
   const { config, updateConfig } = useStoreConfig();
   
-  const { user } = useAuth();
+  const { user, profile, loading: authLoading, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'promotions' | 'settings'>('products');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -38,8 +37,62 @@ export default function AdminDashboard() {
   const lowStockThreshold = config?.lowStockThreshold || 10;
   const lowStockProducts = products.filter(p => p.stock < lowStockThreshold);
 
-  const isAdmin = user?.email?.includes('admin') || user?.email === 'andyzhen222@gmail.com'; 
-  if (!user && !productsLoading) return <Navigate to="/" />;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-gray/30 text-brand-navy">
+        <p className="text-sm font-medium">正在加载登录状态…</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-brand-gray/30 px-6 text-center">
+        <div>
+          <h1 className="text-2xl font-brand font-bold text-brand-navy mb-2">管理员登录</h1>
+          <p className="text-sm text-brand-navy/60 max-w-md">
+            当前为本地模式：数据保存在本机浏览器。登录时第三步填写管理员口令（默认 <code className="text-xs bg-white px-1 py-0.5 rounded">admin</code>
+            ，可通过环境变量 <code className="text-xs bg-white px-1 py-0.5 rounded">VITE_LOCAL_ADMIN_PASSWORD</code> 修改）。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => login()}
+          className="bg-brand-navy text-white px-8 py-4 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-brand-beige transition-colors"
+        >
+          登录（本地会话）
+        </button>
+        <Link to="/" className="text-xs font-bold uppercase tracking-widest text-brand-navy/40 hover:text-brand-navy">
+          返回商店首页
+        </Link>
+      </div>
+    );
+  }
+
+  if (!profile?.isAdmin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-brand-gray/30 px-6 text-center">
+        <div>
+          <h1 className="text-2xl font-brand font-bold text-brand-navy mb-2">无访问权限</h1>
+          <p className="text-sm text-brand-navy/60 max-w-md">
+            当前账号 <span className="font-semibold text-brand-navy">{user.email}</span> 不是管理员会话。请点击下方退出后重新登录，并在提示「管理员口令」时填写正确口令（默认 <code className="text-xs bg-white px-1 py-0.5 rounded">admin</code>）。
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="text-xs font-bold uppercase tracking-widest text-brand-navy border border-brand-gray px-6 py-3 rounded-full hover:bg-brand-gray/40 transition-colors"
+          >
+            退出登录
+          </button>
+          <Link to="/" className="text-xs font-bold uppercase tracking-widest text-brand-beige hover:underline">
+            返回商店首页
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const stats = [
     { label: 'Revenue', value: `€ ${totalRevenue.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -560,32 +613,14 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
     discountPrice: 0
   });
 
-  const makeUploadId = () => {
-    try {
-      const c: any = (globalThis as any).crypto;
-      return c?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    } catch {
-      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-  };
-
   const uploadImagesToStorage = async (files: FileList) => {
     setUploadingImages(true);
     setUploadError(null);
     try {
-      const productFolder = initialData?.id ? `products/${initialData.id}` : 'products/drafts';
       const uploadedUrls: string[] = [];
-
       for (const file of Array.from(files)) {
-        const id = makeUploadId();
-        const safeName = (file.name || 'image').replace(/[^a-zA-Z0-9._-]+/g, '-');
-        const path = `${productFolder}/${id}-${safeName}`;
-        const objectRef = storageRef(storage, path);
-        await uploadBytes(objectRef, file);
-        const url = await getDownloadURL(objectRef);
-        uploadedUrls.push(url);
+        uploadedUrls.push(await fileToDataUrl(file));
       }
-
       setFormData((prev) => ({
         ...prev,
         images: [...(prev.images || []), ...uploadedUrls],
@@ -602,13 +637,7 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
     setUploadingManual(true);
     setUploadError(null);
     try {
-      const productFolder = initialData?.id ? `products/${initialData.id}` : 'products/drafts';
-      const id = makeUploadId();
-      const safeName = (file.name || 'manual.pdf').replace(/[^a-zA-Z0-9._-]+/g, '-');
-      const path = `${productFolder}/manuals/${id}-${safeName}`;
-      const objectRef = storageRef(storage, path);
-      await uploadBytes(objectRef, file);
-      const url = await getDownloadURL(objectRef);
+      const url = await fileToDataUrl(file);
       setFormData((prev) => ({ ...prev, manualUrl: url }));
     } catch (e: any) {
       setUploadError(e?.message || 'Manual upload failed');
@@ -886,24 +915,11 @@ function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
     priority: 1
   });
 
-  const makeUploadId = () => {
-    try {
-      const c: any = (globalThis as any).crypto;
-      return c?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    } catch {
-      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-  };
-
   const uploadPromoImageToStorage = async (file: File) => {
     setUploadingPromoImage(true);
     setPromoUploadError(null);
     try {
-      const id = makeUploadId();
-      const safeName = (file.name || 'promo-image').replace(/[^a-zA-Z0-9._-]+/g, '-');
-      const objectRef = storageRef(storage, `promotions/${id}-${safeName}`);
-      await uploadBytes(objectRef, file);
-      const url = await getDownloadURL(objectRef);
+      const url = await fileToDataUrl(file);
       setFormData((prev) => ({ ...prev, imageUrl: url }));
     } catch (e: any) {
       setPromoUploadError(e?.message || 'Promotion image upload failed');

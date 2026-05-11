@@ -23,7 +23,7 @@ const DEF_NEWS_PH = 'Email Address';
 
 export default function Layout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, login } = useAuth();
+  const { user, profile, login } = useAuth();
   const { itemCount } = useCart();
   const { config } = useStoreConfig();
 
@@ -133,7 +133,7 @@ export default function Layout() {
           {/* Actions */}
           <div className="flex items-center gap-6">
             {/* Entry point for Admin */}
-            {(user?.email?.includes('admin') || user?.email === 'andyzhen222@gmail.com') && (
+            {profile?.isAdmin && (
               <Link to="/admin" className="flex flex-col items-center group text-brand-beige h-10 justify-center px-4 rounded-xl hover:bg-brand-gray transition-all border border-brand-beige/20" id="admin-link">
                 <LayoutDashboard className="w-5 h-5 group-hover:scale-110 transition-transform" strokeWidth={2} />
                 <span className="text-[8px] mt-1 uppercase font-black tracking-widest">Admin</span>

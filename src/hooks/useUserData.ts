@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { Order } from '../types';
 import { useAuth } from '../components/AuthContext';
+import { getLocalOrdersForUser, subscribeLocalDb } from '../lib/localDb';
 
 export function useUserOrders() {
   const { user } = useAuth();
@@ -16,25 +15,12 @@ export function useUserOrders() {
       return;
     }
 
-    const q = query(
-      collection(db, 'orders'), 
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedOrders = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as Order));
-      setOrders(fetchedOrders);
+    const sync = () => {
+      setOrders(getLocalOrdersForUser(user.uid));
       setLoading(false);
-    }, (error) => {
-      console.error("Error fetching user orders:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    };
+    sync();
+    return subscribeLocalDb(sync);
   }, [user]);
 
   return { orders, loading };
