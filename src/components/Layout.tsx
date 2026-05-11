@@ -1,15 +1,36 @@
 import { Link, Outlet } from 'react-router-dom';
 import { ShoppingCart, User, Search, Menu, X, LayoutDashboard, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
+import { useStoreConfig } from '../hooks/useAdminData';
+
+const DEF_TOP1 = 'Free Shipping & Returns';
+const DEF_TOP2 = '365-Day Worry-Free Warranty';
+const DEF_TOP3 = '5-Year Quality Guarantee';
+const DEF_HELP = 'Help & Support';
+const DEF_LOCALE = 'English (EN)';
+const DEF_FOOTER_INTRO =
+  'Homaire creates practical and comfortable home solutions for modern living — furniture, outdoor, kitchen, bathroom, pets, lighting and more — so every space feels more complete.';
+const DEF_FOOTER_COPY = '© 2026 HOMAIRE. ALL RIGHTS RESERVED.';
+const DEF_FOOTER_SLOGAN = 'For Every Corner of Home.';
+const DEF_NEWS_TITLE = 'Newsletter';
+const DEF_NEWS_SUB = 'Receive latest design trends and exclusive product launches.';
+const DEF_NEWS_CTA = 'Join The Club';
+const DEF_NEWS_PH = 'Email Address';
 
 export default function Layout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, login } = useAuth();
   const { itemCount } = useCart();
+  const { config } = useStoreConfig();
+
+  useEffect(() => {
+    const t = (config?.siteTitle || config?.storeName || 'Homaire').trim();
+    document.title = t;
+  }, [config?.siteTitle, config?.storeName]);
 
   const navLinks = [
     { 
@@ -60,22 +81,24 @@ export default function Layout() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-brand-bg">
       {/* Top Banner */}
       <div className="bg-brand-navy text-white text-[11px] py-1.5 px-4 flex justify-between items-center shrink-0">
         <div className="flex gap-6 uppercase tracking-wider font-medium opacity-80">
-          <span className="hidden sm:inline">Free Shipping & Returns</span>
-          <span className="hidden md:inline">365-Day Worry-Free Warranty</span>
-          <span>5-Year Quality Guarantee</span>
+          <span className="hidden sm:inline">{(config?.topBarLine1 || DEF_TOP1).trim()}</span>
+          <span className="hidden md:inline">{(config?.topBarLine2 || DEF_TOP2).trim()}</span>
+          <span>{(config?.topBarLine3 || DEF_TOP3).trim()}</span>
         </div>
         <div className="flex gap-4">
-          <span className="hidden sm:inline opacity-60">Help & Support</span>
-          <span className="font-bold uppercase tracking-widest text-[9px] bg-white/10 px-2 py-0.5 rounded">English (EN)</span>
+          <span className="hidden sm:inline opacity-60">{(config?.topBarHelpText || DEF_HELP).trim()}</span>
+          <span className="font-bold uppercase tracking-widest text-[9px] bg-white/10 px-2 py-0.5 rounded">
+            {(config?.topBarLocaleText || DEF_LOCALE).trim()}
+          </span>
         </div>
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-brand-gray h-20 flex items-center">
+      <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-sm border-b border-brand-border h-20 flex items-center">
         <div className="max-w-7xl mx-auto w-full px-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             {/* Mobile Menu Toggle */}
@@ -149,7 +172,7 @@ export default function Layout() {
       </header>
 
       {/* Secondary Nav */}
-      <nav className="hidden lg:flex border-b border-brand-gray bg-white sticky top-20 z-40">
+      <nav className="hidden lg:flex border-b border-brand-border bg-brand-bg sticky top-20 z-40">
         <div className="max-w-7xl mx-auto w-full px-4 py-1 flex gap-8 text-[12px] font-bold uppercase tracking-wide">
           <Link to="/category/sale" className="text-brand-accent hover:opacity-80 transition-opacity py-3">SALE %</Link>
           {navLinks.map(link => (
@@ -201,7 +224,7 @@ export default function Layout() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 bottom-0 w-80 bg-white z-[101] p-8"
+              className="fixed top-0 left-0 bottom-0 w-80 bg-brand-bg z-[101] p-8"
               id="mobile-drawer"
             >
               <div className="flex justify-between items-center mb-12">
@@ -223,7 +246,7 @@ export default function Layout() {
                 ))}
               </nav>
               <div className="mt-20">
-                <p className="text-[10px] font-bold text-brand-beige uppercase tracking-[0.2em] mb-4">Zip Small. Live Big.</p>
+                <p className="text-[10px] font-bold text-brand-sage uppercase tracking-[0.2em] mb-4">For Every Corner of Home.</p>
                 <div className="h-0.5 w-12 bg-brand-beige" />
               </div>
             </motion.div>
@@ -237,15 +260,15 @@ export default function Layout() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-brand-charcoal text-white py-32 px-4 mt-24 border-t border-white/5">
+      <footer className="bg-brand-navy text-white py-32 px-4 mt-24 border-t border-white/10">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-16 mb-20">
             <div className="lg:col-span-2">
               <Link to="/" className="mb-8 block">
                 <Logo light showSlogan size="lg" className="origin-left" />
               </Link>
-              <p className="text-white/60 text-sm leading-relaxed max-w-sm mb-10">
-                Crafting compact luxury furniture with unparalleled comfort and seamless transformation. Redefining premium living with precision craftsmanship since 2020.
+              <p className="text-white/65 text-sm leading-relaxed max-w-sm mb-10 font-medium">
+                {(config?.footerIntro || DEF_FOOTER_INTRO).trim()}
               </p>
               <div className="flex gap-4">
                 {['Instagram', 'Pinterest', 'Twitter', 'Facebook'].map((social) => (
@@ -278,18 +301,20 @@ export default function Layout() {
             </div>
 
             <div>
-              <h4 className="font-brand font-bold uppercase tracking-widest text-[10px] mb-8 text-brand-beige">Newsletter</h4>
+              <h4 className="font-brand font-bold uppercase tracking-widest text-[10px] mb-8 text-brand-beige">
+                {(config?.newsletterTitle || DEF_NEWS_TITLE).trim()}
+              </h4>
               <p className="text-xs text-white/40 mb-6 font-medium leading-relaxed">
-                Receive latest design trends and exclusive product launches.
+                {(config?.newsletterSubcopy || DEF_NEWS_SUB).trim()}
               </p>
               <form className="flex flex-col gap-3">
                 <input 
                   type="email" 
-                  placeholder="Email Address" 
+                  placeholder={(config?.newsletterPlaceholder || DEF_NEWS_PH).trim()} 
                   className="bg-white/5 border border-white/10 px-6 py-4 text-xs w-full focus:outline-none focus:border-brand-beige transition-colors rounded-xl font-bold uppercase tracking-widest"
                 />
                 <button className="bg-brand-beige text-white px-8 py-4 text-[10px] uppercase font-bold tracking-widest whitespace-nowrap rounded-xl shadow-xl hover:bg-white hover:text-brand-navy transition-all">
-                  Join The Club
+                  {(config?.newsletterCtaLabel || DEF_NEWS_CTA).trim()}
                 </button>
               </form>
             </div>
@@ -297,10 +322,10 @@ export default function Layout() {
 
           <div className="border-t border-white/5 pt-12 flex flex-col md:flex-row justify-between items-center gap-8">
             <div className="flex gap-12 text-[9px] font-medium uppercase tracking-[0.2em] text-white/30">
-              <p>© 2026 ZIPSOFA. ALL RIGHTS RESERVED.</p>
+              <p>{(config?.footerCopyright || DEF_FOOTER_COPY).trim()}</p>
               <p className="flex items-center gap-2">
                 <span className="w-1 h-1 bg-brand-beige rounded-full" />
-                Zip Small. Live Big.
+                {(config?.footerSloganLine || DEF_FOOTER_SLOGAN).trim()}
               </p>
             </div>
             <div className="flex gap-8 text-[10px] font-bold uppercase tracking-widest text-white/30">

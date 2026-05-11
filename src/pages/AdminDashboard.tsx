@@ -1,4 +1,4 @@
-import React, { useState, FormEvent, useRef } from 'react';
+import React, { useState, FormEvent, useRef, Fragment } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import { useOrders, usePromotions, useAdminActions } from '../hooks/useAdminData';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,6 +16,7 @@ import { useAuth } from '../components/AuthContext';
 import { Product, Order, Promotion, StoreConfig } from '../types';
 import { useStoreConfig } from '../hooks/useAdminData';
 import { storage } from '../lib/firebase';
+import { SiteSettingsForm } from '../components/admin/SiteSettingsForm';
 
 export default function AdminDashboard() {
   const { products, loading: productsLoading } = useProducts();
@@ -53,7 +54,7 @@ export default function AdminDashboard() {
       <aside className="w-64 bg-white border-r border-brand-gray flex flex-col fixed h-full z-40">
         <div className="p-8 border-b border-brand-gray">
           <Link to="/" className="flex flex-col gap-1">
-            <span className="text-xl font-brand font-bold tracking-tighter text-brand-navy leading-none">ZIPSOFA</span>
+            <span className="text-xl font-brand font-bold tracking-tighter text-brand-navy leading-none">HOMAIRE</span>
             <span className="text-[9px] font-bold tracking-[0.4em] text-brand-beige uppercase">Executive Hub</span>
           </Link>
         </div>
@@ -63,7 +64,7 @@ export default function AdminDashboard() {
             { id: 'products', label: 'Inventory', icon: <Package className="w-4 h-4" /> },
             { id: 'orders', label: 'Purchases', icon: <ShoppingBag className="w-4 h-4" /> },
             { id: 'promotions', label: 'Campaigns', icon: <Tag className="w-4 h-4" /> },
-            { id: 'settings', label: 'Systems', icon: <Settings className="w-4 h-4" /> },
+            { id: 'settings', label: 'Site & CMS', icon: <Settings className="w-4 h-4" /> },
           ].map(tab => (
             <button 
               key={tab.id}
@@ -264,7 +265,9 @@ export default function AdminDashboard() {
 
               {activeTab === 'settings' && (
                 <div className="p-8 max-w-2xl">
-                  <StoreSettingsForm config={config} onSave={updateConfig} />
+                  <Fragment key={config ? 'site-cfg' : 'site-cfg-pending'}>
+                    <SiteSettingsForm config={config} onSave={updateConfig} />
+                  </Fragment>
                 </div>
               )}
             </motion.div>
@@ -533,72 +536,6 @@ function ImportModal({ onImport, onClose }: { onImport: (data: any[]) => Promise
 }
 
 // Sub-components for forms
-function StoreSettingsForm({ config, onSave }: { config?: StoreConfig, onSave: (data: Partial<StoreConfig>) => void }) {
-  const [formData, setFormData] = useState<Partial<StoreConfig>>(config || {
-    name: 'ZipSofa',
-    currency: 'EUR',
-    contactEmail: '',
-    lowStockThreshold: 10,
-    shippingPolicy: '',
-    returnPolicy: ''
-  });
-
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-8">
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-3">Brand Designation</label>
-          <input 
-            type="text" 
-            value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige transition-all"
-          />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-3">Currency Unit</label>
-          <input 
-            type="text" 
-            value={formData.currency}
-            onChange={(e) => setFormData({...formData, currency: e.target.value})}
-            className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige transition-all"
-          />
-        </div>
-      </div>
-      <div>
-        <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-3">Operational Support Channel</label>
-        <input 
-          type="email" 
-          value={formData.contactEmail}
-          onChange={(e) => setFormData({...formData, contactEmail: e.target.value})}
-          className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige transition-all"
-        />
-      </div>
-      <div>
-        <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-3">Inventory Criticality Threshold</label>
-        <input 
-          type="number" 
-          value={formData.lowStockThreshold}
-          onChange={(e) => setFormData({...formData, lowStockThreshold: parseInt(e.target.value)})}
-          className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige transition-all"
-        />
-      </div>
-      <div>
-        <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-3">Logistics Framework</label>
-        <textarea 
-          rows={4}
-          value={formData.shippingPolicy}
-          onChange={(e) => setFormData({...formData, shippingPolicy: e.target.value})}
-          className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige transition-all"
-        />
-      </div>
-      <button type="submit" className="w-full bg-brand-navy text-white py-5 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-brand-beige transition-all shadow-3xl">
-        Synchronize Settings
-      </button>
-    </form>
-  );
-}
-
 function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (data: Partial<Product>) => void }) {
   const imagesFileInputRef = useRef<HTMLInputElement>(null);
   const manualFileInputRef = useRef<HTMLInputElement>(null);
@@ -712,7 +649,7 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
                 ...formData,
                 features: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean),
               })}
-              placeholder={'One selling point per line\nCompact modular footprint\nQuick zip conversion'}
+              placeholder={'One selling point per line\nCompact modular footprint\nEasy everyday care'}
               rows={5}
               className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
             />

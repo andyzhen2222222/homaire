@@ -97,7 +97,7 @@ export default function ProfilePage() {
                     Acquisitions <span className="text-brand-beige">Archive</span>.
                   </h1>
                   <p className="text-brand-navy/60 font-medium leading-relaxed max-w-2xl text-lg italic">
-                    Track your design pieces from our workshop to your sanctuary. Every ZIPSOFA piece is handcrafted with precision and purpose.
+                    Track your orders from our warehouse to your door. Every Homaire piece is chosen for quality, comfort, and everyday living.
                   </p>
                 </div>
 
@@ -177,7 +177,7 @@ export default function ProfilePage() {
                       <ShoppingBag className="w-10 h-10 text-brand-navy/10" />
                     </div>
                     <h3 className="text-3xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-6">Acquisition History Empty</h3>
-                    <p className="text-brand-navy/40 text-[11px] font-bold uppercase tracking-widest leading-loose max-w-sm mx-auto mb-12">Your space is waiting for its centerpiece. Begin your design journey with ZipSofa.</p>
+                    <p className="text-brand-navy/40 text-[11px] font-bold uppercase tracking-widest leading-loose max-w-sm mx-auto mb-12">Your next room refresh starts here — explore the Homaire collection.</p>
                     <Link to="/category/sofas" className="inline-flex items-center gap-4 bg-brand-navy text-white px-12 py-6 rounded-full font-bold uppercase text-xs tracking-widest hover:bg-brand-beige transition-all shadow-3xl">
                        Explore The Collection <ChevronRight className="w-4 h-4" />
                     </Link>

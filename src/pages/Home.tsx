@@ -2,64 +2,95 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useCart } from '../components/CartContext';
-import { usePromotions } from '../hooks/useAdminData';
-import founderElenaImage from '../assets/founder-elena.png';
+import { usePromotions, useStoreConfig } from '../hooks/useAdminData';
+import { mergeTrustItems } from '../lib/siteContent';
+import type { Promotion } from '../types';
 import heroModelSceneImage from '../assets/hero-model-scene.png';
+
+const BRAND_BOARD_IMAGE = '/homaire-brand-board.png';
 
 const fallbackProductImage = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200&h=1200';
 
+const HERO_IMAGE_FALLBACK = heroModelSceneImage;
+
+const DEFAULT_HERO_BANNERS = [
+  {
+    title: "Every Corner of Home",
+    subtitle: "Practical, comfortable pieces for living rooms that work as hard as you do.",
+    imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
+    cta: "Shop Sofas",
+    link: "/category/sofas"
+  },
+  {
+    title: "Curated for Modern Living",
+    subtitle: "Thoughtful form, warm materials, and layouts that feel complete — not crowded.",
+    imageUrl: heroModelSceneImage,
+    cta: "Explore Now",
+    link: "/category/sofas"
+  },
+  {
+    title: "Restful Bedrooms",
+    subtitle: "Beds and accents shaped for calm, storage, and everyday ease.",
+    imageUrl: "https://images.unsplash.com/photo-1505693415918-91e514789da1?auto=format&fit=crop&q=80&w=2000",
+    cta: "Shop Beds",
+    link: "/category/beds"
+  },
+  {
+    title: "Gather & Dine",
+    subtitle: "Tables sized for real rooms — everyday meals and unhurried weekends.",
+    imageUrl: "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&q=80&w=2000",
+    cta: "Shop Tables",
+    link: "/category/tables"
+  },
+  {
+    title: "Outdoor & Garden",
+    subtitle: "Weather-ready comfort for balconies, patios, and open-air moments.",
+    imageUrl: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=2000",
+    cta: "Shop Garden",
+    link: "/category/garden"
+  }
+] as const;
+
+function resolveHeroBannerImageUrl(banner: Pick<Promotion, 'imageUrl'> | (typeof DEFAULT_HERO_BANNERS)[number] | undefined): string {
+  const raw = banner && 'imageUrl' in banner ? banner.imageUrl : undefined;
+  if (typeof raw === 'string' && raw.trim().length > 0) return raw.trim();
+  return HERO_IMAGE_FALLBACK;
+}
+
+function cssUrlValue(url: string): string {
+  return `url("${url.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`;
+}
+
 export default function Home() {
   const { products, loading: productsLoading } = useProducts();
-  const { promotions, loading: promosLoading } = usePromotions();
+  const { promotions } = usePromotions();
+  const { config } = useStoreConfig();
   const { addItem } = useCart();
   const [currentBanner, setCurrentBanner] = useState(0);
+  const [heroSlideImageFailed, setHeroSlideImageFailed] = useState(false);
 
   const activeHeroPromos = promotions.filter(p => p.active && p.type === 'hero');
   const activeCardPromos = promotions.filter(p => p.active && p.type === 'card');
   const activeSalePromos = promotions.filter(p => p.active && p.type === 'sale');
 
-  // Fallback banners if none in DB
-  const defaultBanners = [
-    {
-      title: "Modular Mastery",
-      subtitle: "Explore the perfect fusion of minimalist art and ultimate comfort",
-      imageUrl: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
-      cta: "View Sofas",
-      link: "/category/sofas"
-    },
-    {
-      title: "The Founder's Selection",
-      subtitle: "Elena Moretti curates the definitive collection for modular living.",
-      imageUrl: heroModelSceneImage,
-      cta: "Explore Now",
-      link: "/category/sofas"
-    },
-    {
-      title: "Compact Sleep",
-      subtitle: "Bedroom pieces shaped for storage, calm, and flexible city living.",
-      imageUrl: "https://images.unsplash.com/photo-1505693415918-91e514789da1?auto=format&fit=crop&q=80&w=2000",
-      cta: "Shop Beds",
-      link: "/category/beds"
-    },
-    {
-      title: "Dining That Fits",
-      subtitle: "Tables with clean proportion for everyday meals and smaller rooms.",
-      imageUrl: "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&q=80&w=2000",
-      cta: "Shop Tables",
-      link: "/category/tables"
-    },
-    {
-      title: "Outdoor Ease",
-      subtitle: "Weather-ready comfort for balconies, patios, and compact gardens.",
-      imageUrl: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=2000",
-      cta: "Shop Garden",
-      link: "/category/garden"
+  const displayBanners = useMemo(() => {
+    const heroes = promotions.filter((p) => p.active && p.type === 'hero');
+    if (heroes.length > 0) {
+      return heroes.map((p) => ({
+        ...p,
+        imageUrl: resolveHeroBannerImageUrl(p),
+      }));
     }
-  ];
+    return [...DEFAULT_HERO_BANNERS];
+  }, [promotions]);
 
-  const displayBanners = activeHeroPromos.length > 0 ? activeHeroPromos : defaultBanners;
+  const trustItems = useMemo(() => mergeTrustItems(config), [config]);
+
+  useEffect(() => {
+    setHeroSlideImageFailed(false);
+  }, [currentBanner]);
 
   useEffect(() => {
     if (displayBanners.length > 0) {
@@ -85,13 +116,18 @@ export default function Home() {
   const featuredProducts = products.slice(0, 8);
   const productImage = (product: { images?: string[] }) => product.images?.[0] || fallbackProductImage;
 
+  const currentHeroSlide = displayBanners[currentBanner];
+  const resolvedHeroImageUrl = heroSlideImageFailed
+    ? HERO_IMAGE_FALLBACK
+    : (currentHeroSlide?.imageUrl?.trim() || HERO_IMAGE_FALLBACK);
+
   return (
     <div className="space-y-1 pb-20 bg-brand-gray">
       {/* Main Layout Area */}
       <section className="bg-brand-gray p-1">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-1 h-[70vh]">
           {/* Hero Section */}
-          <div className="md:col-span-8 relative bg-white overflow-hidden group">
+          <div className="md:col-span-8 relative bg-brand-bg overflow-hidden group">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentBanner}
@@ -102,17 +138,27 @@ export default function Home() {
                 className="absolute inset-0"
               >
                 <div className="absolute inset-0 bg-brand-gray overflow-hidden">
+                  {/* CSS poster layer: fills hero when img is slow or has no usable src */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 z-0 bg-cover bg-center opacity-90 motion-safe:scale-105 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
+                    style={{ backgroundImage: cssUrlValue(resolvedHeroImageUrl) }}
+                  />
                   <motion.img 
                     initial={{ scale: 1.1 }}
                     animate={{ scale: 1 }}
                     transition={{ duration: 10, ease: "linear" }}
-                    src={displayBanners[currentBanner]?.imageUrl} 
-                    alt={displayBanners[currentBanner]?.title} 
-                    className={`w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-700 ${displayBanners[currentBanner]?.imageUrl?.includes('08906967') ? 'w-[300%] h-[200%] max-w-none' : ''}`}
-                    style={displayBanners[currentBanner]?.imageUrl?.includes('08906967') ? { objectPosition: '0% 0%' } : {}}
+                    src={resolvedHeroImageUrl}
+                    alt={currentHeroSlide?.title ?? 'Hero'}
+                    className={`absolute inset-0 z-[1] w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-700 ${resolvedHeroImageUrl.includes('08906967') ? 'w-[300%] h-[200%] max-w-none' : ''}`}
+                    style={resolvedHeroImageUrl.includes('08906967') ? { objectPosition: '0% 0%' } : {}}
                     referrerPolicy="no-referrer"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    onError={() => setHeroSlideImageFailed(true)}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/60 to-transparent" />
+                  <div className="absolute inset-0 z-[2] bg-gradient-to-r from-white/60 to-transparent pointer-events-none" />
                 </div>
                 <div className="absolute bottom-12 left-12 max-w-md z-10">
                   <motion.div
@@ -120,11 +166,11 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.8, delay: 0.2 }}
                   >
-                    <span className="text-brand-beige text-xs font-bold uppercase tracking-[0.3em] mb-4 block">Zip Small. Live Big.</span>
+                    <span className="text-brand-sage text-xs font-bold uppercase tracking-[0.3em] mb-4 block">Homaire</span>
                     <h1 className="text-4xl md:text-6xl font-brand font-bold leading-[0.9] text-brand-navy mb-6 uppercase tracking-tighter">
                       {displayBanners[currentBanner]?.title}
                     </h1>
-                    <p className="text-brand-navy/70 text-lg mb-8 font-medium">
+                    <p className="text-brand-charcoal/80 text-lg mb-8 font-medium">
                       {displayBanners[currentBanner]?.subtitle}
                     </p>
                     <Link 
@@ -233,15 +279,10 @@ export default function Home() {
       {/* Trust Indicators */}
       <section className="bg-white border-y border-brand-gray">
         <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {[
-            { title: 'Free Delivery', sub: 'On all premium orders', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-            { title: '2-Year Warranty', sub: 'Guaranteed quality', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-            { title: 'Zip Small. Live Big.', sub: 'Compact efficiency', icon: 'M5 13l4 4L19 7' },
-            { title: 'Expert Support', sub: 'Amsterdam based team', icon: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z' }
-          ].map((item, i) => (
+          {trustItems.map((item, i) => (
             <div key={i} className="flex items-center gap-4">
               <div className="w-12 h-12 bg-brand-gray rounded-full flex items-center justify-center text-brand-navy">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon}></path></svg>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.iconPath}></path></svg>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-tight text-brand-navy">{item.title}</p>
@@ -256,11 +297,15 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 pt-24">
         <div className="flex justify-between items-end mb-12 border-b border-brand-gray pb-6">
           <div>
-            <span className="text-brand-beige text-[10px] uppercase tracking-[0.3em] font-bold block mb-2">Curation</span>
-            <h2 className="text-4xl text-brand-navy uppercase font-brand font-bold tracking-tighter">Shop by Function</h2>
+            <span className="text-brand-beige text-[10px] uppercase tracking-[0.3em] font-bold block mb-2">
+              {(config?.homeShopEyebrow || 'Curation').trim()}
+            </span>
+            <h2 className="text-4xl text-brand-navy uppercase font-brand font-bold tracking-tighter">
+              {(config?.homeShopTitle || 'Shop by Function').trim()}
+            </h2>
           </div>
           <Link to="/" className="text-[10px] font-bold uppercase tracking-widest text-brand-navy/30 hover:text-brand-navy transition-colors pb-1 border-b border-transparent hover:border-brand-navy/30">
-            View All
+            {(config?.homeShopViewAllLabel || 'View All').trim()}
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -289,32 +334,32 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Founder's Vision Section */}
+      {/* About Homaire */}
       <section className="max-w-7xl mx-auto px-4 pt-32">
-        <div className="bg-white rounded-[4rem] overflow-hidden shadow-sm border border-brand-gray">
+        <div className="bg-white rounded-[4rem] overflow-hidden shadow-sm border border-brand-border">
           <div className="grid grid-cols-1 lg:grid-cols-2">
-            <div className="p-16 lg:p-24 flex flex-col justify-center">
-              <span className="text-brand-beige text-[10px] uppercase tracking-[0.4em] font-bold block mb-8">Letter from the Founder</span>
-              <h2 className="text-4xl md:text-6xl font-brand font-bold text-brand-navy uppercase leading-[0.9] tracking-tighter mb-10">THE <br />FOUNDER'S <br />VISION</h2>
-              <p className="text-brand-navy/60 text-lg mb-12 font-medium leading-relaxed italic border-l-2 border-brand-beige pl-8">
-                "Our design philosophy is simple: we create space where it doesn't exist. ZipSofa is about the intersection of high-concept aesthetics and the reality of modern life. Every stitch is a commitment to living big, regardless of the square footage."
+            <div className="p-16 lg:p-24 flex flex-col justify-center order-2 lg:order-1">
+              <span className="text-brand-sage text-[10px] uppercase tracking-[0.4em] font-bold block mb-8">
+                {(config?.homeAboutEyebrow || 'About Homaire').trim()}
+              </span>
+              <h2 className="text-4xl md:text-5xl font-brand font-bold text-brand-navy leading-[1.05] tracking-tight mb-10">
+                {(config?.homeAboutTitle || 'Practical comfort for modern homes').trim()}
+              </h2>
+              <p className="text-brand-charcoal/85 text-lg mb-6 font-medium leading-relaxed border-l-2 border-brand-beige pl-8">
+                {(config?.homeAboutBody ||
+                  'Homaire creates practical and comfortable home solutions for modern living. With a wide range of products across furniture, outdoor, kitchen, bathroom, pets, lighting and more, we help you make every space feel more complete.'
+                ).trim()}
               </p>
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-brand-navy text-xl font-brand font-bold uppercase tracking-tight">Elena Moretti</p>
-                  <p className="text-brand-navy/30 text-[10px] uppercase font-bold tracking-[0.3em]">Chief Design Officer & Founder</p>
-                </div>
-              </div>
+              <p className="text-brand-navy font-brand font-semibold text-2xl tracking-tight">Homaire</p>
+              <p className="text-brand-beige font-medium text-sm uppercase tracking-[0.2em] mt-3">For Every Corner of Home.</p>
             </div>
-            <div className="aspect-[4/5] lg:aspect-auto relative min-h-[600px] overflow-hidden">
-              <div className="absolute inset-0 w-full h-full bg-brand-gray/20">
-                <img 
-                  src={founderElenaImage}
-                  alt="Elena Moretti - Founder Portrait"
-                  className="w-full h-full object-cover object-top"
-                />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-l from-brand-navy/0 to-transparent" />
+            <div className="aspect-[4/5] lg:aspect-auto relative min-h-[420px] lg:min-h-[560px] overflow-hidden bg-brand-gray order-1 lg:order-2">
+              <img
+                src={(config?.homeAboutBrandBoardUrl || BRAND_BOARD_IMAGE).trim()}
+                alt="Homaire brand guidelines and visual identity"
+                className="w-full h-full object-contain object-center p-6 sm:p-10 bg-[#f5f4ef]"
+              />
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-l from-brand-sage/10 to-transparent" />
             </div>
           </div>
         </div>
@@ -324,7 +369,7 @@ export default function Home() {
       <section className="bg-brand-navy text-white py-32 mt-24 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5 pointer-events-none">
           {/* Brand Pattern Background */}
-          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, #C4A07A 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, #d4af7a 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
         </div>
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center gap-20 relative z-10">
           <div className="flex-1">
@@ -333,13 +378,31 @@ export default function Home() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <span className="text-brand-beige text-xs uppercase tracking-[0.4em] font-bold block mb-6">Manifesto</span>
-              <h2 className="text-4xl md:text-6xl font-brand font-bold mb-10 leading-[0.95] tracking-tighter uppercase">ZIP SMALL.<br />LIVE BIG.</h2>
-              <p className="text-white/60 text-lg mb-12 font-medium leading-relaxed max-w-xl">
-                True luxury isn't about space; it's about context. We design furniture that adapts to your life, whether you're blooming in a studio or expanding in a penthouse. Precision engineering meets high-aesthetic comfort.
+              <span className="text-brand-beige text-xs uppercase tracking-[0.4em] font-bold block mb-6">
+                {(config?.homeManifestoEyebrow || 'Our promise').trim()}
+              </span>
+              <h2 className="text-4xl md:text-6xl font-brand font-bold mb-10 leading-[0.95] tracking-tighter uppercase">
+                {(config?.homeManifestoTitle || 'For every corner\nof home.')
+                  .trim()
+                  .split('\n')
+                  .filter(Boolean)
+                  .map((line, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && <br />}
+                      {line}
+                    </Fragment>
+                  ))}
+              </h2>
+              <p className="text-white/70 text-lg mb-12 font-medium leading-relaxed max-w-xl">
+                {(config?.homeManifestoBody ||
+                  'From the living room to the balcony, kitchen to bathroom, we bring together pieces that feel considered, livable, and easy to love — so you can shape a home that works for real routines, not just photos.'
+                ).trim()}
               </p>
-              <Link to="/" className="inline-flex items-center gap-4 bg-brand-beige text-white px-10 py-5 text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-white hover:text-brand-navy transition-all shadow-2xl">
-                The Brand Story <ArrowRight className="w-4 h-4" />
+              <Link
+                to={(config?.homeManifestoCtaHref || '/').trim() || '/'}
+                className="inline-flex items-center gap-4 bg-brand-beige text-brand-navy px-10 py-5 text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-white hover:text-brand-navy transition-all shadow-2xl"
+              >
+                {(config?.homeManifestoCtaLabel || 'Shop the collection').trim()} <ArrowRight className="w-4 h-4" />
               </Link>
             </motion.div>
           </div>
@@ -351,7 +414,9 @@ export default function Home() {
               className="aspect-[4/5] relative rounded-[3rem] overflow-hidden shadow-2xl"
             >
               <img 
-                src="https://images.unsplash.com/photo-1540574163026-643ea20ade25?auto=format&fit=crop&q=80&w=1000" 
+                src={(config?.homeManifestoImageUrl ||
+                  'https://images.unsplash.com/photo-1540574163026-643ea20ade25?auto=format&fit=crop&q=80&w=1000'
+                ).trim()} 
                 alt="Craftsmanship" 
                 className="w-full h-full object-cover"
               />
@@ -359,11 +424,17 @@ export default function Home() {
               <div className="absolute bottom-8 left-8 right-8 bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/20">
                 <div className="flex justify-between items-end">
                   <div>
-                    <span className="text-4xl font-brand font-bold text-white block mb-1">Amsterdam</span>
-                    <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-beige">Design Studio</span>
+                    <span className="text-4xl font-brand font-bold text-white block mb-1">
+                      {(config?.homeManifestoCardTitle || 'Homaire').trim()}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-beige">
+                      {(config?.homeManifestoCardSub || 'Home living').trim()}
+                    </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-bold text-white uppercase tracking-widest block">Est. 2020</span>
+                    <span className="text-xs font-bold text-white uppercase tracking-widest block">
+                      {(config?.homeManifestoCardYear || 'Since 2020').trim()}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -375,8 +446,12 @@ export default function Home() {
       {/* Trending Now */}
       <section className="max-w-7xl mx-auto px-4 py-32">
         <div className="text-center max-w-2xl mx-auto mb-20">
-          <span className="text-brand-beige text-[10px] uppercase tracking-[0.4em] font-bold block mb-4">The Selection</span>
-          <h2 className="text-4xl font-brand font-bold uppercase tracking-tighter text-brand-navy">Most Desired Objects</h2>
+          <span className="text-brand-beige text-[10px] uppercase tracking-[0.4em] font-bold block mb-4">
+            {(config?.homeTrendingEyebrow || 'The Selection').trim()}
+          </span>
+          <h2 className="text-4xl font-brand font-bold uppercase tracking-tighter text-brand-navy">
+            {(config?.homeTrendingTitle || 'Most Desired Objects').trim()}
+          </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {productsLoading ? (
@@ -392,7 +467,7 @@ export default function Home() {
                 className="group"
               >
                 <Link to={`/product/${product.id}`} className="block">
-                  <div className="aspect-[4/5] bg-white overflow-hidden mb-8 shadow-sm border border-brand-gray relative group rounded-[3rem]">
+                  <div className="aspect-[4/5] bg-white overflow-hidden mb-8 shadow-sm border border-brand-border relative group rounded-[3rem]">
                     <img 
                       src={productImage(product)}
                       alt={product.name} 

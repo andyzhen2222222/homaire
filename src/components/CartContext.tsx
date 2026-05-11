@@ -13,14 +13,21 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const CART_STORAGE_KEY = 'homaire_cart';
+const LEGACY_CART_KEY = 'zipsofa_cart';
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('zipsofa_cart');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const raw = localStorage.getItem(CART_STORAGE_KEY) ?? localStorage.getItem(LEGACY_CART_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem('zipsofa_cart', JSON.stringify(items));
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
   const addItem = (product: Product) => {

@@ -1,16 +1,22 @@
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { motion, AnimatePresence } from 'motion/react';
-import { Filter, SlidersHorizontal, ChevronDown, Grid, List as ListIcon, X, ShoppingCart } from 'lucide-react';
+import { SlidersHorizontal, X, ShoppingCart } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useCart } from '../components/CartContext';
+import { DEFAULT_CATEGORY_HEROES } from '../data/categoryHeroes';
+import { useStoreConfig } from '../hooks/useAdminData';
+
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000';
 
 export default function CategoryPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const subCategory = searchParams.get('sub');
   const { addItem } = useCart();
-  
+  const { config } = useStoreConfig();
+
   const { products, loading } = useProducts(slug);
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'newest'>('featured');
   const [showFilters, setShowFilters] = useState(false);
@@ -46,40 +52,25 @@ export default function CategoryPage() {
     return result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
   }, [products, sortBy, priceRange, subCategory, selectedSubs]);
 
-  const categoryInfo: Record<string, { title: string, subtitle: string, image: string }> = {
-    sofas: {
-      title: "ZIP-MODULAR SOFAS",
-      subtitle: "Small Footprint. Infinite Comfort. Big Living.",
-      image: "/artifact/08906967f6502213d2983758b2e59e979069d32d"
-    },
-    beds: {
-      title: "RESTFUL LUXE",
-      subtitle: "The Foundation of Every Great Morning.",
-      image: "https://images.unsplash.com/photo-1505691938895-1758d7eaa511?auto=format&fit=crop&q=80&w=2000"
-    },
-    tables: {
-      title: "CRAFTED SURFACE",
-      subtitle: "Gather Around Modern Craftsmanship.",
-      image: "https://images.unsplash.com/photo-1534073828943-f801091bb18c?auto=format&fit=crop&q=80&w=2000"
-    },
-    chairs: {
-      title: "SCULPTED SUPPORT",
-      subtitle: "Ergonomic Art for Every Corner.",
-      image: "https://images.unsplash.com/photo-1580480055273-228ff5388ef8?auto=format&fit=crop&q=80&w=2000"
-    },
-    garden: {
-      title: "OUTDOOR REFINED",
-      subtitle: "Your High-End Oasis, Under the Sky.",
-      image: "https://images.unsplash.com/photo-1517409197771-1520a09e8b91?auto=format&fit=crop&q=80&w=2000"
-    },
-    sale: {
-      title: "ZIP PRIVILEGE",
-      subtitle: "Limited-Time Access to Brand Classics.",
-      image: "/artifact/08906967f6502213d2983758b2e59e979069d32d"
-    }
-  };
-
-  const currentCategory = categoryInfo[slug || 'sofas'] || categoryInfo.sofas;
+  const currentCategory = useMemo(() => {
+    const base =
+      slug && DEFAULT_CATEGORY_HEROES[slug]
+        ? DEFAULT_CATEGORY_HEROES[slug]
+        : {
+            title: (slug || 'collection')
+              .replace(/-/g, ' ')
+              .replace(/\b\w/g, (c) => c.toUpperCase()),
+            subtitle: 'Discover pieces curated for modern living.',
+            image: FALLBACK_IMAGE,
+          };
+    const ov = slug ? config?.categoryHeroes?.[slug] : undefined;
+    if (!ov) return base;
+    return {
+      title: (ov.title && ov.title.trim()) || base.title,
+      subtitle: (ov.subtitle && ov.subtitle.trim()) || base.subtitle,
+      image: (ov.image && ov.image.trim()) || base.image,
+    };
+  }, [slug, config?.categoryHeroes]);
 
   if (loading) {
     return (
@@ -97,47 +88,19 @@ export default function CategoryPage() {
       {/* Category Banner */}
       <section className="relative h-[55vh] w-full overflow-hidden shrink-0 mt-[100px]">
         <div className="absolute inset-0 bg-brand-navy/30 z-10" />
-        <div className={`absolute inset-0 ${currentCategory.image.includes('08906967') ? 'w-[300%] h-[200%]' : 'w-full h-full'}`}>
-          <motion.img 
-            initial={{ scale: 1.1, opacity: 0 }}
+        <div className="absolute inset-0 w-full h-full">
+          <motion.img
+            initial={{ scale: 1.05, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            src={currentCategory.image} 
-            alt={slug} 
+            transition={{ duration: 1.2, ease: 'easeOut' }}
+            src={currentCategory.image}
+            alt=""
             className="w-full h-full object-cover"
-            style={currentCategory.image?.includes('08906967') ? { objectPosition: '0% 0%' } : {}}
             referrerPolicy="no-referrer"
             onError={(e) => {
-              if (currentCategory.image?.includes('artifact')) {
-                e.currentTarget.style.display = 'none';
-                const parent = e.currentTarget.parentElement;
-                if (parent) {
-                  parent.style.backgroundImage = 'url(https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000)';
-                  parent.style.backgroundSize = 'cover';
-                }
-              }
+              e.currentTarget.src = FALLBACK_IMAGE;
             }}
           />
-        </div>
-        <div className="absolute inset-0 z-20 flex items-center">
-          <div className="max-w-7xl mx-auto w-full px-4">
-            <motion.div
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="max-w-2xl"
-            >
-              <span className="text-white text-[10px] uppercase font-bold tracking-[0.4em] mb-4 block drop-shadow-sm">
-                Collection / {slug}
-              </span>
-              <h1 className="text-white text-6xl md:text-8xl font-brand font-bold uppercase tracking-tighter mb-4 leading-none drop-shadow-lg">
-                {currentCategory.title}
-              </h1>
-              <p className="text-white/90 text-sm md:text-xl font-medium tracking-tight drop-shadow-sm max-w-lg">
-                {currentCategory.subtitle}
-              </p>
-            </motion.div>
-          </div>
         </div>
         <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-white to-transparent z-25" />
       </section>
@@ -148,14 +111,14 @@ export default function CategoryPage() {
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-brand-navy/30 font-bold mb-6">
             <Link to="/" className="hover:text-brand-beige transition-colors">Home</Link>
             <span className="opacity-30">/</span>
-            <span className="text-brand-navy capitalize">{slug}</span>
+            <span className="text-brand-navy">{currentCategory.title}</span>
           </div>
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
             <div>
-              <h1 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-4 leading-[0.9]">{slug}</h1>
-              <p className="text-brand-navy/60 max-w-xl font-medium leading-relaxed text-lg">
-                Our meticulously crafted {slug} line. Experience the perfect synthesis of spatial intelligence and modern luxury.
-              </p>
+              <h1 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-4 leading-[0.9]">
+                {currentCategory.title}
+              </h1>
+              <p className="text-brand-navy/60 max-w-xl font-medium leading-relaxed text-lg">{currentCategory.subtitle}</p>
             </div>
             <div className="flex items-center gap-6">
                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">{sortedProducts.length} Exclusive Pieces</span>

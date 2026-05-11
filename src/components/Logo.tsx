@@ -1,8 +1,3 @@
-import React from 'react';
-import logoHorizontal from '../assets/logo-horizontal.png';
-import logoMark from '../assets/logo-mark.png';
-import logoWordmark from '../assets/logo-wordmark.png';
-
 interface LogoProps {
   className?: string;
   showSlogan?: boolean;
@@ -11,60 +6,62 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export default function Logo({ className = '', showSlogan = false, variant = 'full', light = false, size = 'md' }: LogoProps) {
-  const textColor = light ? 'text-white' : 'text-brand-navy';
-  const src = variant === 'symbol' ? logoMark : variant === 'wordmark' ? logoWordmark : logoHorizontal;
-  const [imgError, setImgError] = React.useState(false);
+/** 全站统一字标：Homaire + 屋顶符号 + 标语（与 VI 一致，不依赖栅格 logo） */
+function HomaireWordmark({
+  light,
+  showSlogan,
+  size,
+  variant,
+}: {
+  light: boolean;
+  showSlogan: boolean;
+  size: LogoProps['size'];
+  variant: LogoProps['variant'];
+}) {
+  const compact = variant === 'symbol';
 
-  const heightClass =
-    size === 'sm' ? 'h-8' :
-    size === 'lg' ? 'h-12' :
-    size === 'xl' ? 'h-16' :
-    'h-10';
+  const titleClass = compact
+    ? 'text-xl sm:text-2xl'
+    : size === 'xl'
+      ? 'text-3xl sm:text-4xl'
+      : size === 'lg'
+        ? 'text-2xl sm:text-3xl'
+        : size === 'sm'
+          ? 'text-lg'
+          : 'text-xl sm:text-2xl';
 
-  const minStyle =
-    variant === 'symbol'
-      ? (size === 'xl' ? { minWidth: '64px', minHeight: '64px' } :
-         size === 'lg' ? { minWidth: '48px', minHeight: '48px' } :
-         size === 'sm' ? { minWidth: '32px', minHeight: '32px' } :
-         { minWidth: '40px', minHeight: '40px' })
-      : (size === 'xl' ? { minWidth: '280px', minHeight: '64px' } :
-         size === 'lg' ? { minWidth: '210px', minHeight: '48px' } :
-         size === 'sm' ? { minWidth: '140px', minHeight: '32px' } :
-         { minWidth: '160px', minHeight: '40px' });
+  const title = light ? 'text-white' : 'text-brand-navy';
+  const sloganClass = light ? 'text-brand-beige/95' : 'text-brand-navy/55';
 
   return (
-    <div className={`flex flex-col ${className}`}>
-      <div className="flex items-center gap-3">
-        {!imgError ? (
-          <img 
-            src={src} 
-            alt="ZipSofa Logo" 
-            className={`${heightClass} w-auto object-contain block`}
-            style={minStyle}
-            referrerPolicy="no-referrer"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className={`flex items-center gap-2 ${textColor} py-1`}>
-            <div className="relative w-10 h-10 flex items-center justify-center">
-              <div className="absolute inset-0 bg-brand-beige/20 rounded-xl rotate-12" />
-              <div className="absolute inset-0 border-2 border-brand-beige rounded-xl" />
-              <span className="font-brand font-black text-xl italic tracking-tighter">Z</span>
-            </div>
-            {variant !== 'symbol' && (
-              <span className="font-brand font-bold text-2xl tracking-tighter uppercase whitespace-nowrap">
-                Zip<span className="text-brand-beige text-3xl">.</span>Sofa
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <span className={`font-brand font-semibold tracking-tight ${titleClass} ${title}`}>
+        Homaire
+        <span className="text-brand-beige align-super text-[0.55em] font-medium leading-none ml-0.5" aria-hidden>
+          ^
+        </span>
+      </span>
       {showSlogan && variant === 'full' && (
-        <span className={`text-[8px] uppercase tracking-[0.4em] font-black mt-1 ml-1 opacity-40 ${textColor}`}>
-          Zip Small. Live Big.
+        <span className={`text-[10px] sm:text-[11px] font-medium tracking-wide ${sloganClass}`}>
+          For Every Corner of Home.
         </span>
       )}
+    </div>
+  );
+}
+
+export default function Logo({
+  className = '',
+  showSlogan = false,
+  variant = 'full',
+  light = false,
+  size = 'md',
+}: LogoProps) {
+  const showSloganBlock = showSlogan && (variant === 'full' || variant === 'wordmark');
+
+  return (
+    <div className={className}>
+      <HomaireWordmark light={light} showSlogan={showSloganBlock} size={size} variant={variant} />
     </div>
   );
 }

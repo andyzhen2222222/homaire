@@ -37,7 +37,7 @@ export default function SalePage() {
               UP TO <br /> <span className="text-brand-navy">70% OFF</span>
             </h1>
             <p className="max-w-xl mx-auto text-brand-navy/60 font-medium uppercase text-xs tracking-[0.2em] leading-relaxed">
-              Zip Small. Live Big. Experience premium craftsmanship at exceptional brand privilege prices.
+              For Every Corner of Home — premium craftsmanship at exceptional event pricing.
             </p>
           </motion.div>
         </div>
@@ -138,7 +138,7 @@ export default function SalePage() {
              </div>
              <div>
                 <span className="text-brand-beige font-bold uppercase tracking-[0.4em] text-[10px] block mb-6">Archive Access</span>
-                <h2 className="text-5xl md:text-8xl font-brand font-bold uppercase tracking-tighter text-brand-navy leading-[0.8] mb-10">THE ZIP <br /> ARCHIVE</h2>
+                <h2 className="text-5xl md:text-8xl font-brand font-bold uppercase tracking-tighter text-brand-navy leading-[0.8] mb-10">THE HOMAIRE <br /> SALE</h2>
                 <p className="text-brand-navy/60 font-medium mb-12 leading-relaxed text-xl">
                     Signature silhouettes, floor samples, and archived editions at exclusive brand privilege prices. These pieces define our history and your space.
                 </p>

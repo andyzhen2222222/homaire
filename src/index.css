@@ -1,20 +1,22 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-brand: "Montserrat", sans-serif;
-  
-  --color-brand-bg: #ffffff;
-  --color-brand-navy: #14233C;
-  --color-brand-beige: #C4A07A;
-  --color-brand-gray: #F2F4F7;
-  --color-brand-charcoal: #0C1626;
+  /* Homaire VI — Poppins per brand guidelines */
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-brand: "Poppins", ui-sans-serif, system-ui, sans-serif;
 
-  /* Legacy variable mappings to maintain compatibility while shifting theme */
-  --color-brand-ink: #0C1626;
-  --color-brand-muted: #14233C;
-  --color-brand-accent: #C4A07A;
-  --color-brand-border: #F2F4F7;
+  --color-brand-bg: #f5f4ef;
+  --color-brand-navy: #1e3a32;
+  --color-brand-beige: #d4af7a;
+  --color-brand-gray: #ede9e2;
+  --color-brand-charcoal: #222222;
+  --color-brand-sage: #6d8f7a;
+
+  /* Legacy semantic tokens (mapped to Homaire palette) */
+  --color-brand-ink: #222222;
+  --color-brand-muted: #1e3a32;
+  --color-brand-accent: #d4af7a;
+  --color-brand-border: #e3ddd4;
 
   @keyframes marquee {
     from { transform: translateX(0); }
@@ -25,10 +27,10 @@
 
 @layer base {
   body {
-    @apply bg-brand-bg text-brand-navy font-sans antialiased;
+    @apply bg-brand-bg text-brand-charcoal font-sans antialiased;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-brand font-semibold tracking-tight;
+    @apply font-brand font-semibold tracking-tight text-brand-navy;
   }
 }

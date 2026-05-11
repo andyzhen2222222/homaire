@@ -95,10 +95,10 @@ const createAssetStack = (images: string[], index: number, category: string) =>
     return `${base}?auto=format&fit=crop&q=82&${aspect}&cat=${category}&item=${index}&asset=${assetIndex + 1}`;
   });
 
-const SOFA_SUBCATS = ['modular', 'zip-leather', 'compact', 'luxury-nest'];
+const SOFA_SUBCATS = ['modular', 'leather', 'compact', 'luxury-nest'];
 const sofaItems: Product[] = Array.from({ length: 60 }).map((_, i) => {
   const subCat = SOFA_SUBCATS[i % SOFA_SUBCATS.length];
-  const name = i === 0 ? "Signature Zip-Modular Sofa" : 
+  const name = i === 0 ? "Signature Modular Sofa" : 
                i === 1 ? "Compact Luxe Sofa" :
                i === 2 ? "Warm Beige Sectional" :
                `${subCat.charAt(0).toUpperCase() + subCat.slice(1)} Series ${Math.floor(i / SOFA_SUBCATS.length) + 1}`;
@@ -114,7 +114,7 @@ const sofaItems: Product[] = Array.from({ length: 60 }).map((_, i) => {
     subCategory: subCat,
     videoUrl: i === 0 ? 'https://player.vimeo.com/external/370331493.sd.mp4?s=7b231da3050800c025068a73315a013f9c6d4ba4&profile_id=139&oauth2_token_id=57447761' : undefined,
     stock: 10 + (i % 20),
-    features: ['Compact modular footprint', 'Quick zip conversion', 'High-resilience comfort foam', 'Removable washable covers'],
+    features: ['Compact modular footprint', 'Easy reconfiguration', 'High-resilience comfort foam', 'Removable washable covers'],
     manualUrl: SAMPLE_MANUAL_URL
   };
 });

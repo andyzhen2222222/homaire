@@ -271,7 +271,7 @@ export default function ProductDetail() {
               </div>
               <div className="bg-brand-navy text-white rounded-2xl p-8">
                 <Sparkles className="w-7 h-7 text-brand-beige mb-6" />
-                <p className="text-2xl font-brand font-bold uppercase tracking-tighter leading-tight">Zip Small. Live Big.</p>
+                <p className="text-2xl font-brand font-bold uppercase tracking-tighter leading-tight">For Every Corner of Home.</p>
               </div>
             </div>
           </div>
@@ -282,9 +282,11 @@ export default function ProductDetail() {
         <div className="max-w-7xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-14 items-center">
           <div>
             <Logo size="lg" className="mb-10" />
-            <h2 className="text-4xl md:text-6xl font-brand font-bold uppercase tracking-tighter leading-none mb-8">Make Room For The Life You Want</h2>
+            <h2 className="text-4xl md:text-6xl font-brand font-bold text-brand-navy tracking-tight leading-tight mb-8">
+              For Every Corner of Home.
+            </h2>
             <p className="text-lg text-brand-navy/60 leading-relaxed font-medium">
-              ZipSofa creates flexible furniture for homes that need to work harder. Every piece is designed to save space, feel comfortable, and adapt to the way real rooms change through the day.
+              Homaire brings together practical, comfortable pieces for real routines — living, dining, sleep, outdoor, and more — so your home feels complete without the clutter.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-5">
