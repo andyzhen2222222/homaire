@@ -1,4 +1,4 @@
-import type { StoreConfig } from '../types';
+import type { HomeTrustItem, StoreConfig } from '../types';
 
 export type TrustRowItem = { title: string; sub: string; iconPath: string };
 
@@ -19,6 +19,18 @@ export function mergeTrustItems(config?: StoreConfig | null): TrustRowItem[] {
       title: (item?.title && String(item.title).trim()) || d.title,
       sub: (item?.sub && String(item.sub).trim()) || d.sub,
       iconPath: (item?.iconPath && String(item.iconPath).trim()) || d.iconPath,
+    };
+  });
+}
+
+/** 与后台 Site 表单一致：逐条合并默认信任条，用于装修草稿初始化与保存 */
+export function mergeHomeTrustDraftItems(config?: StoreConfig | null): HomeTrustItem[] {
+  return DEFAULT_HOME_TRUST.map((d, i) => {
+    const o = config?.homeTrustItems?.[i];
+    return {
+      title: (o?.title && String(o.title).trim()) || d.title,
+      sub: (o?.sub && String(o.sub).trim()) || d.sub,
+      iconPath: (o?.iconPath && String(o.iconPath).trim()) || d.iconPath,
     };
   });
 }

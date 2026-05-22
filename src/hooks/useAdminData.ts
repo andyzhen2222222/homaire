@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Order, Promotion, Product, StoreConfig } from '../types';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Order, OrderStatus, Promotion, Product, StoreConfig, Category } from '../types';
 import {
   subscribeLocalDb,
   getLocalOrdersSorted,
+  getLocalOrderById,
   localUpdateOrderStatus,
+  localMarkOrderProcessing,
+  localShipOrder,
+  localUpdateOrderAdminNote,
+  LocalOrder,
   getLocalPromotionsSorted,
   localTogglePromotion,
   localDeletePromotion,
@@ -14,31 +19,107 @@ import {
   localBulkAddProducts,
   getLocalConfig,
   localUpdateConfig,
+  getLocalCategoriesSorted,
+  localAddCategory,
+  localUpdateCategory,
+  localDeleteCategory,
 } from '../lib/localDb';
 import { handleFirestoreError, OperationType } from '../lib/dataErrors';
+import {
+  type OrderListQuery,
+  queryOrders,
+  seedDemoOrderIfEmpty,
+} from '../lib/adminOrders';
 
 export function useOrders() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const admin = useAdminOrders();
+  return {
+    orders: admin.allOrders,
+    loading: admin.loading,
+    updateOrderStatus: admin.updateOrderStatus,
+  };
+}
+
+export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' }) {
+  const [allOrders, setAllOrders] = useState<LocalOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState<OrderListQuery>(initialQuery);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
-      setOrders(getLocalOrdersSorted());
+      setAllOrders(getLocalOrdersSorted());
       setLoading(false);
     };
     sync();
     return subscribeLocalDb(sync);
   }, []);
 
-  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+  const orders = useMemo(() => queryOrders(allOrders, query), [allOrders, query]);
+
+  const selectedOrder = useMemo(() => {
+    if (!selectedId) return null;
+    return getLocalOrderById(selectedId) ?? null;
+  }, [selectedId, allOrders]);
+
+  const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     try {
       localUpdateOrderStatus(orderId, status);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+      throw error;
     }
-  };
+  }, []);
 
-  return { orders, loading, updateOrderStatus };
+  const markProcessing = useCallback(async (orderId: string) => {
+    try {
+      localMarkOrderProcessing(orderId);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+      throw error;
+    }
+  }, []);
+
+  const shipOrder = useCallback(
+    async (orderId: string, payload: { carrier: string; trackingNumber: string }) => {
+      try {
+        localShipOrder(orderId, payload);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+        throw error;
+      }
+    },
+    []
+  );
+
+  const saveAdminNote = useCallback(async (orderId: string, note: string) => {
+    try {
+      localUpdateOrderAdminNote(orderId, note);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+      throw error;
+    }
+  }, []);
+
+  const seedDemo = useCallback(() => {
+    seedDemoOrderIfEmpty();
+  }, []);
+
+  return {
+    allOrders,
+    orders,
+    loading,
+    query,
+    setQuery,
+    selectedId,
+    setSelectedId,
+    selectedOrder,
+    updateOrderStatus,
+    markProcessing,
+    shipOrder,
+    saveAdminNote,
+    seedDemo,
+  };
 }
 
 export function usePromotions() {
@@ -81,6 +162,46 @@ export function usePromotions() {
   return { promotions, loading, togglePromotion, deletePromotion, addPromotion };
 }
 
+export function useCategories() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const sync = () => {
+      setCategories(getLocalCategoriesSorted());
+      setLoading(false);
+    };
+    sync();
+    return subscribeLocalDb(sync);
+  }, []);
+
+  const addCategory = async (cat: Omit<Category, 'id'>) => {
+    try {
+      localAddCategory(cat);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'categories');
+    }
+  };
+
+  const updateCategory = async (id: string, updates: Partial<Omit<Category, 'id'>>) => {
+    try {
+      localUpdateCategory(id, updates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `categories/${id}`);
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    try {
+      localDeleteCategory(id);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `categories/${id}`);
+    }
+  };
+
+  return { categories, loading, addCategory, updateCategory, deleteCategory };
+}
+
 export function useAdminActions() {
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
     try {
@@ -107,10 +228,26 @@ export function useAdminActions() {
   };
 
   const bulkAddProducts = async (products: Omit<Product, 'id' | 'createdAt'>[]) => {
-    try {
-      localBulkAddProducts(products);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'products');
+    const BATCH = 35;
+    let written = 0;
+    for (let i = 0; i < products.length; i += BATCH) {
+      const slice = products.slice(i, i + BATCH);
+      try {
+        localBulkAddProducts(slice);
+        written += slice.length;
+      } catch (error: unknown) {
+        const isQuota =
+          (typeof DOMException !== 'undefined' &&
+            error instanceof DOMException &&
+            error.name === 'QuotaExceededError') ||
+          (error instanceof Error && /QuotaExceeded|quota|NS_ERROR_DOM_QUOTA_REACHED/i.test(error.message));
+        if (isQuota && written > 0) {
+          throw new Error(
+            `已成功导入 ${written} 条；浏览器 localStorage 已满，无法继续写入剩余 ${products.length - written} 条。请删除部分本地商品后再分批导入。`
+          );
+        }
+        handleFirestoreError(error, OperationType.WRITE, 'products');
+      }
     }
   };
 

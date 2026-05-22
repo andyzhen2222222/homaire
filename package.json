@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:import": "tsx scripts/test-product-import.ts",
+    "import:djian": "tsx scripts/import-djian-sofa-csv.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

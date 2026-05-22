@@ -9,6 +9,7 @@ import CartPage from './pages/CartPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/AdminDashboard';
 import SalePage from './pages/SalePage';
+import BrandStoryPage from './pages/BrandStoryPage';
 import ScrollToTop from './components/ScrollToTop';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="product/:id" element={<ProductDetail />} />
               <Route path="cart" element={<CartPage />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="brand-story" element={<BrandStoryPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

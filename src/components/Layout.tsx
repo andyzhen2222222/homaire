@@ -1,11 +1,19 @@
 import { Link, Outlet } from 'react-router-dom';
-import { ShoppingCart, User, Search, Menu, X, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { ShoppingCart, User, Search, Menu, X, LayoutDashboard, ChevronDown, Truck, MapPin, Wrench, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
 import { useStoreConfig } from '../hooks/useAdminData';
+import { HOMAIRE_SLOGAN } from '../content/homaireBrandStory';
+import {
+  GLOBAL_SERVICE_STRIP_TITLE_DEFAULT,
+  GLOBAL_SERVICE_DELIVERY_TIME_DEFAULT,
+  GLOBAL_SERVICE_DELIVERY_AREA_DEFAULT,
+  GLOBAL_SERVICE_INSTALLATION_DEFAULT,
+  GLOBAL_SERVICE_WARRANTY_DEFAULT,
+} from '../lib/globalServiceStripDefaults';
 
 const DEF_TOP1 = 'Free Shipping & Returns';
 const DEF_TOP2 = '365-Day Worry-Free Warranty';
@@ -15,7 +23,7 @@ const DEF_LOCALE = 'English (EN)';
 const DEF_FOOTER_INTRO =
   'Homaire creates practical and comfortable home solutions for modern living — furniture, outdoor, kitchen, bathroom, pets, lighting and more — so every space feels more complete.';
 const DEF_FOOTER_COPY = '© 2026 HOMAIRE. ALL RIGHTS RESERVED.';
-const DEF_FOOTER_SLOGAN = 'For Every Corner of Home.';
+const DEF_FOOTER_SLOGAN = HOMAIRE_SLOGAN;
 const DEF_NEWS_TITLE = 'Newsletter';
 const DEF_NEWS_SUB = 'Receive latest design trends and exclusive product launches.';
 const DEF_NEWS_CTA = 'Join The Club';
@@ -33,50 +41,50 @@ export default function Layout() {
   }, [config?.siteTitle, config?.storeName]);
 
   const navLinks = [
-    { 
-      name: 'Sofas', 
+    {
+      name: '沙发',
       href: '/category/sofas',
       sublinks: [
-        { name: 'Fabric Sofas', href: '/category/sofas?sub=fabric' },
-        { name: 'Leather Sofas', href: '/category/sofas?sub=leather' },
-        { name: 'Corner Sofas', href: '/category/sofas?sub=corner' },
-        { name: 'Sofa Beds', href: '/category/sofas?sub=sofabed' }
-      ]
+        { name: '布艺沙发', href: '/category/sofas?sub=fabric' },
+        { name: '皮革沙发', href: '/category/sofas?sub=leather' },
+        { name: '转角沙发', href: '/category/sofas?sub=corner' },
+        { name: '沙发床', href: '/category/sofas?sub=sofabed' },
+      ],
     },
-    { 
-      name: 'Beds', 
+    {
+      name: '床',
       href: '/category/beds',
       sublinks: [
-        { name: 'Solid Wood Beds', href: '/category/beds?sub=solidwood' },
-        { name: 'Upholstered Beds', href: '/category/beds?sub=upholstered' },
-        { name: 'Minimalist Frames', href: '/category/beds?sub=minimalist' }
-      ]
+        { name: '实木床', href: '/category/beds?sub=solidwood' },
+        { name: '软包床', href: '/category/beds?sub=upholstered' },
+        { name: '极简床架', href: '/category/beds?sub=minimalist' },
+      ],
     },
-    { 
-      name: 'Tables', 
+    {
+      name: '桌子',
       href: '/category/tables',
       sublinks: [
-        { name: 'Dining Tables', href: '/category/tables?sub=dining' },
-        { name: 'Coffee Tables', href: '/category/tables?sub=coffee' },
-        { name: 'Side Tables', href: '/category/tables?sub=side' }
-      ]
+        { name: '餐桌', href: '/category/tables?sub=dining' },
+        { name: '茶几', href: '/category/tables?sub=coffee' },
+        { name: '边几', href: '/category/tables?sub=side' },
+      ],
     },
-    { 
-      name: 'Chairs', 
+    {
+      name: '椅子',
       href: '/category/chairs',
       sublinks: [
-        { name: 'Dining Chairs', href: '/category/chairs?sub=dining' },
-        { name: 'Armchairs', href: '/category/chairs?sub=armchair' },
-        { name: 'Lounge Chairs', href: '/category/chairs?sub=lounge' }
-      ]
+        { name: '餐椅', href: '/category/chairs?sub=dining' },
+        { name: '扶手椅', href: '/category/chairs?sub=armchair' },
+        { name: '休闲椅', href: '/category/chairs?sub=lounge' },
+      ],
     },
-    { 
-      name: 'Garden', 
+    {
+      name: '户外',
       href: '/category/garden',
       sublinks: [
-        { name: 'Outdoor Sofas', href: '/category/garden?sub=sofa' },
-        { name: 'Patio Sets', href: '/category/garden?sub=set' }
-      ]
+        { name: '户外沙发', href: '/category/garden?sub=sofa' },
+        { name: '庭院套装', href: '/category/garden?sub=set' },
+      ],
     },
   ];
 
@@ -111,7 +119,7 @@ export default function Layout() {
             </button>
 
             {/* Logo */}
-            <Link to="/" id="main-logo">
+            <Link to="/" id="main-logo" className="shrink-0">
               <Logo size="xl" className="origin-left" />
             </Link>
           </div>
@@ -173,14 +181,20 @@ export default function Layout() {
 
       {/* Secondary Nav */}
       <nav className="hidden lg:flex border-b border-brand-border bg-brand-bg sticky top-20 z-40">
-        <div className="max-w-7xl mx-auto w-full px-4 py-1 flex gap-8 text-[12px] font-bold uppercase tracking-wide">
-          <Link to="/category/sale" className="text-brand-accent hover:opacity-80 transition-opacity py-3">SALE %</Link>
+        <div className="max-w-7xl mx-auto w-full px-4 py-1 flex gap-8 text-[13px] font-semibold tracking-wide">
+          <Link to="/category/sale" className="text-brand-accent hover:opacity-80 transition-opacity py-3">限时特惠</Link>
+          <Link
+            to="/brand-story"
+            className="border-b border-transparent py-3 text-brand-navy/80 transition-colors hover:border-brand-beige/40 hover:text-brand-beige"
+          >
+            品牌故事
+          </Link>
           {navLinks.map(link => (
-            <div key={link.name} className="relative group/nav py-3">
+            <div key={link.href} className="relative group/nav py-3">
               <Link 
                 to={link.href} 
                 className="text-brand-navy hover:text-brand-beige transition-colors flex items-center gap-1"
-                id={`nav-link-${link.name.toLowerCase()}`}
+                id={`nav-link-${link.href.replace(/[^a-z0-9]+/gi, '-')}`}
               >
                 {link.name}
                 <ChevronDown className="w-3 h-3 opacity-30 group-hover/nav:rotate-180 transition-transform" />
@@ -194,7 +208,7 @@ export default function Layout() {
                     <Link 
                       key={sub.name} 
                       to={sub.href} 
-                      className="text-[11px] text-brand-navy/60 hover:text-brand-navy transition-colors tracking-widest whitespace-nowrap"
+                      className="text-[12px] text-brand-navy/60 hover:text-brand-navy transition-colors whitespace-nowrap"
                     >
                       {sub.name}
                     </Link>
@@ -203,8 +217,8 @@ export default function Layout() {
               </div>
             </div>
           ))}
-          <Link to="/category/lighting" className="text-brand-navy hover:text-brand-beige transition-colors py-3">Lighting</Link>
-          <Link to="/category/accessories" className="text-brand-navy hover:text-brand-beige transition-colors py-3">Accessories</Link>
+          <Link to="/category/lighting" className="text-brand-navy hover:text-brand-beige transition-colors py-3">灯具</Link>
+          <Link to="/category/accessories" className="text-brand-navy hover:text-brand-beige transition-colors py-3">家居配件</Link>
         </div>
       </nav>
 
@@ -233,10 +247,24 @@ export default function Layout() {
                   <X className="w-6 h-6 text-brand-navy" />
                 </button>
               </div>
-              <nav className="flex flex-col gap-6 uppercase text-lg font-brand font-bold text-brand-navy">
+              <nav className="flex flex-col gap-6 text-lg font-brand font-semibold text-brand-navy">
+                <Link
+                  to="/category/sale"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="hover:text-brand-beige py-2 border-b border-brand-gray text-brand-accent"
+                >
+                  限时特惠
+                </Link>
+                <Link
+                  to="/brand-story"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="hover:text-brand-beige py-2 border-b border-brand-gray"
+                >
+                  品牌故事
+                </Link>
                 {navLinks.map(link => (
                   <Link 
-                    key={link.name} 
+                    key={link.href} 
                     to={link.href} 
                     onClick={() => setIsMenuOpen(false)}
                     className="hover:text-brand-beige py-2 border-b border-brand-gray"
@@ -244,9 +272,23 @@ export default function Layout() {
                     {link.name}
                   </Link>
                 ))}
+                <Link
+                  to="/category/lighting"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="hover:text-brand-beige py-2 border-b border-brand-gray"
+                >
+                  灯具
+                </Link>
+                <Link
+                  to="/category/accessories"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="hover:text-brand-beige py-2 border-b border-brand-gray"
+                >
+                  家居配件
+                </Link>
               </nav>
               <div className="mt-20">
-                <p className="text-[10px] font-bold text-brand-sage uppercase tracking-[0.2em] mb-4">For Every Corner of Home.</p>
+                <p className="text-[10px] font-bold text-brand-sage uppercase tracking-[0.2em] mb-4">{HOMAIRE_SLOGAN}</p>
                 <div className="h-0.5 w-12 bg-brand-beige" />
               </div>
             </motion.div>
@@ -259,8 +301,64 @@ export default function Layout() {
         <Outlet />
       </main>
 
+      {/* Global service strip (above footer) */}
+      <section
+        className="mt-24 border-t border-brand-gray bg-white px-4 py-14 sm:py-16"
+        aria-labelledby="global-service-strip-heading"
+      >
+        <div className="max-w-7xl mx-auto">
+          <h2
+            id="global-service-strip-heading"
+            className="font-brand text-4xl md:text-5xl font-bold uppercase tracking-tighter text-brand-navy leading-tight mb-10 text-center sm:text-left"
+          >
+            {(config?.globalServiceStripTitle || GLOBAL_SERVICE_STRIP_TITLE_DEFAULT).trim()}
+          </h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+            {(
+              [
+                {
+                  icon: Truck,
+                  label: 'Delivery time',
+                  body: (config?.globalServiceDeliveryTime || GLOBAL_SERVICE_DELIVERY_TIME_DEFAULT).trim(),
+                },
+                {
+                  icon: MapPin,
+                  label: 'Delivery area',
+                  body: (config?.globalServiceDeliveryArea || GLOBAL_SERVICE_DELIVERY_AREA_DEFAULT).trim(),
+                },
+                {
+                  icon: Wrench,
+                  label: 'Installation',
+                  body: (config?.globalServiceInstallation || GLOBAL_SERVICE_INSTALLATION_DEFAULT).trim(),
+                },
+                {
+                  icon: ShieldCheck,
+                  label: 'Warranty',
+                  body: (config?.globalServiceWarranty || GLOBAL_SERVICE_WARRANTY_DEFAULT).trim(),
+                },
+              ] as const
+            ).map(({ icon: Icon, label, body }) => (
+              <div
+                key={label}
+                className="flex gap-4 rounded-2xl border border-brand-gray/80 bg-brand-gray/10 p-5 sm:p-6 shadow-sm"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-beige shadow-sm ring-1 ring-brand-gray/40">
+                  <Icon className="h-6 w-6" strokeWidth={1.75} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-brand text-[10px] font-bold uppercase tracking-widest text-brand-navy/45 mb-2">
+                    {label}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-brand-navy/75 font-medium">{body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="bg-brand-navy text-white py-32 px-4 mt-24 border-t border-white/10">
+      <footer className="bg-brand-navy text-white py-32 px-4 mt-16 border-t border-white/10">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-16 mb-20">
             <div className="lg:col-span-2">
@@ -293,7 +391,7 @@ export default function Layout() {
             <div>
               <h4 className="font-brand font-bold uppercase tracking-widest text-[10px] mb-8 text-brand-beige">About</h4>
               <ul className="space-y-4 text-[11px] font-medium uppercase tracking-widest text-white/50">
-                <li><Link to="/" className="hover:text-brand-beige transition-colors">Our Story</Link></li>
+                <li><Link to="/brand-story" className="hover:text-brand-beige transition-colors">品牌故事</Link></li>
                 <li><Link to="/" className="hover:text-brand-beige transition-colors">Craftsmanship</Link></li>
                 <li><Link to="/admin" className="hover:text-brand-beige transition-colors">Admin Access</Link></li>
                 <li><Link to="/" className="hover:text-brand-beige transition-colors">Sustainability</Link></li>

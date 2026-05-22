@@ -1,6 +1,6 @@
-import React, { useState, FormEvent, useRef, Fragment } from 'react';
+import React, { useState, useEffect, useMemo, FormEvent, useRef, Fragment } from 'react';
 import { useProducts } from '../hooks/useProducts';
-import { useOrders, usePromotions, useAdminActions } from '../hooks/useAdminData';
+import { useOrders, usePromotions, useAdminActions, useCategories } from '../hooks/useAdminData';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -8,28 +8,97 @@ import {
   Plus, Trash2, Edit, Package, DollarSign, ShoppingBag, 
   Users, LayoutDashboard, Search, X, Check, ArrowRight,
   TrendingUp, Clock, AlertCircle, Eye, Tag, Image as ImageIcon,
-  ChevronRight, Filter, Download, MoreHorizontal, Settings
+  ChevronRight, Filter, Download, MoreHorizontal, Settings, Layers, LayoutTemplate
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Product, Order, Promotion, StoreConfig } from '../types';
+import { Product, Order, Promotion, StoreConfig, Category } from '../types';
 import { useStoreConfig } from '../hooks/useAdminData';
 import { SiteSettingsForm } from '../components/admin/SiteSettingsForm';
+import { HomeDecorEditor } from '../components/admin/HomeDecorEditor';
+import { OrderManagement } from '../components/admin/OrderManagement';
 import { fileToDataUrl } from '../lib/fileToDataUrl';
+import {
+  processImportedProductRows,
+  downloadProductImportTemplateCsv,
+  getProductImportTemplateSheetRows,
+  PRODUCT_IMPORT_SHORT_TITLE_MAX,
+  PRODUCT_IMPORT_NAME_MAX,
+} from '../lib/productImport';
+import { enrichImportedProductsWithShortTitles } from '../lib/storeShortTitle';
+import {
+  buildCategorySelectOptions,
+  getCategoryLevel,
+  countProductsInCategorySubtree,
+  getDescendantIds,
+  flattenCategoryTreeSorted,
+  getCategoryPathLabel,
+} from '../lib/categoryTree';
+
+/** 传统 Element / Vue 后台风格弹窗：无缩放动效、纯色遮罩、细边框与轻阴影 */
+const ADMIN_MODAL_MASK = 'absolute inset-0 bg-black/45';
+const ADMIN_MODAL_DIALOG =
+  'relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded border border-[#dcdfe6] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)]';
+const ADMIN_MODAL_HEADER =
+  'flex shrink-0 items-center justify-between border-b border-[#e4e7ed] bg-[#f5f7fa] px-4 py-3';
+const ADMIN_MODAL_TITLE = 'text-base font-medium text-[#303133]';
+const ADMIN_MODAL_SUBTITLE = 'mt-0.5 text-xs text-[#909399]';
+const ADMIN_MODAL_CLOSE =
+  'rounded-sm border border-[#dcdfe6] bg-white p-2 text-[#909399] hover:bg-[#ecf5ff] hover:text-[#409eff]';
+
+/** 简易 Element / Vue 后台表单控件 */
+const ADMIN_FORM_LABEL = 'mb-1.5 block text-sm text-[#606266]';
+const ADMIN_FORM_HINT = 'mt-1 text-xs text-[#909399] leading-relaxed';
+const ADMIN_FORM_CONTROL =
+  'w-full rounded-sm border border-[#dcdfe6] bg-white px-3 py-2 text-sm text-[#606266] outline-none focus:border-[#409eff] focus:ring-1 focus:ring-[#c6e2ff]';
+const ADMIN_FORM_TEXTAREA = `${ADMIN_FORM_CONTROL} min-h-[88px] resize-y align-top`;
+const ADMIN_FORM_SECTION = 'mb-2 text-sm font-medium text-[#303133]';
+const ADMIN_BTN_PRIMARY =
+  'rounded-sm border border-[#409eff] bg-[#409eff] px-4 py-2 text-sm text-white hover:bg-[#66b1ff] disabled:cursor-not-allowed disabled:opacity-50';
+const ADMIN_BTN_DEFAULT =
+  'rounded-sm border border-[#dcdfe6] bg-white px-4 py-2 text-sm text-[#606266] hover:border-[#c0c4cc] hover:text-[#409eff]';
+
+function productListSortKey(p: Product): number {
+  const u = p.updatedAt as { seconds?: number } | undefined;
+  const c = p.createdAt as { seconds?: number } | undefined;
+  const tu = typeof u?.seconds === 'number' ? u.seconds : 0;
+  const tc = typeof c?.seconds === 'number' ? c.seconds : 0;
+  return Math.max(tu, tc);
+}
 
 export default function AdminDashboard() {
-  const { products } = useProducts();
-  const { orders, updateOrderStatus } = useOrders();
+  const { products, usingDemoFallback } = useProducts();
+  /** 后台列表：最新创建/更新的商品在前，导入数据会出现在表格上方 */
+  const inventoryProducts = useMemo(
+    () => [...products].sort((a, b) => productListSortKey(b) - productListSortKey(a)),
+    [products]
+  );
+  const { orders } = useOrders();
   const { promotions, togglePromotion, deletePromotion, addPromotion } = usePromotions();
   const { addProduct, bulkAddProducts, updateProduct, deleteProduct } = useAdminActions();
-  const { config, updateConfig } = useStoreConfig();
-  
-  const { user, profile, loading: authLoading, login, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'promotions' | 'settings'>('products');
+  const { config, updateConfig, loading: configLoading } = useStoreConfig();
+  const { categories, addCategory, updateCategory, deleteCategory } = useCategories();
+
+  const { user, profile, loading: authLoading, loginWithCredentials, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'promotions' | 'homeDecor' | 'settings'>('products');
+  const [adminEmail, setAdminEmail] = useState('demo@local.test');
+  const [adminDisplayName, setAdminDisplayName] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+  const [adminLoginSubmitting, setAdminLoginSubmitting] = useState(false);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAddingPromo, setIsAddingPromo] = useState(false);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryModalParentId, setCategoryModalParentId] = useState<string | null>(null);
+
+  const closeCategoryModal = () => {
+    setIsAddingCategory(false);
+    setEditingCategory(null);
+    setCategoryModalParentId(null);
+  };
 
   // Stats calculation
   const totalRevenue = orders.reduce((acc, order) => order.status !== 'cancelled' ? acc + order.total : acc, 0);
@@ -39,30 +108,106 @@ export default function AdminDashboard() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-gray/30 text-brand-navy">
+      <div className="flex min-h-screen items-center justify-center bg-[#f0f2f5] text-[#606266]">
         <p className="text-sm font-medium">正在加载登录状态…</p>
       </div>
     );
   }
 
   if (!user) {
+    const onAdminLogin = async (e: FormEvent) => {
+      e.preventDefault();
+      setAdminLoginError(null);
+      setAdminLoginSubmitting(true);
+      try {
+        const displayName =
+          adminDisplayName.trim() || adminEmail.split('@')[0] || 'Admin';
+        const result = await loginWithCredentials({
+          email: adminEmail,
+          displayName,
+          adminPassword,
+          requireMatchingAdminPassword: true,
+        });
+        if (!result.ok) {
+          setAdminLoginError(result.error);
+        }
+      } finally {
+        setAdminLoginSubmitting(false);
+      }
+    };
+
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-brand-gray/30 px-6 text-center">
-        <div>
-          <h1 className="text-2xl font-brand font-bold text-brand-navy mb-2">管理员登录</h1>
-          <p className="text-sm text-brand-navy/60 max-w-md">
-            当前为本地模式：数据保存在本机浏览器。登录时第三步填写管理员口令（默认 <code className="text-xs bg-white px-1 py-0.5 rounded">admin</code>
-            ，可通过环境变量 <code className="text-xs bg-white px-1 py-0.5 rounded">VITE_LOCAL_ADMIN_PASSWORD</code> 修改）。
+      <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#f0f2f5] px-6 py-16">
+        <div className="max-w-md text-center">
+          <h1 className="mb-2 text-xl font-medium text-[#303133]">管理员登录</h1>
+          <p className="text-sm text-[#909399]">
+            本地模式：数据保存在本机浏览器。口令默认 <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>
+            ，可在项目 <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">.env</code> 中设置{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">VITE_LOCAL_ADMIN_PASSWORD</code> 覆盖。
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => login()}
-          className="bg-brand-navy text-white px-8 py-4 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-brand-beige transition-colors"
+
+        <form
+          onSubmit={onAdminLogin}
+          className="w-full max-w-sm space-y-4 rounded-sm border border-[#dcdfe6] bg-white p-6 text-left shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
         >
-          登录（本地会话）
-        </button>
-        <Link to="/" className="text-xs font-bold uppercase tracking-widest text-brand-navy/40 hover:text-brand-navy">
+          <div>
+            <label htmlFor="admin-login-email" className={ADMIN_FORM_LABEL}>
+              邮箱
+            </label>
+            <input
+              id="admin-login-email"
+              type="email"
+              autoComplete="username"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              className={ADMIN_FORM_CONTROL}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="admin-login-name" className={ADMIN_FORM_LABEL}>
+              显示名称（可选）
+            </label>
+            <input
+              id="admin-login-name"
+              type="text"
+              autoComplete="name"
+              value={adminDisplayName}
+              onChange={(e) => setAdminDisplayName(e.target.value)}
+              placeholder={adminEmail.includes('@') ? adminEmail.split('@')[0] : '管理员'}
+              className={ADMIN_FORM_CONTROL}
+            />
+          </div>
+          <div>
+            <label htmlFor="admin-login-password" className={ADMIN_FORM_LABEL}>
+              管理员口令
+            </label>
+            <input
+              id="admin-login-password"
+              type="password"
+              autoComplete="current-password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              className={ADMIN_FORM_CONTROL}
+              required
+            />
+          </div>
+          {adminLoginError && (
+            <p className="rounded-sm border border-[#fde2e2] bg-[#fef0f0] px-3 py-2 text-xs text-[#f56c6c]" role="alert">
+              {adminLoginError}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={adminLoginSubmitting}
+            className={`${ADMIN_BTN_PRIMARY} w-full`}
+          >
+            {adminLoginSubmitting ? '登录中…' : '登录后台'}
+          </button>
+        </form>
+
+        <Link to="/" className="text-sm text-[#909399] hover:text-[#409eff]">
           返回商店首页
         </Link>
       </div>
@@ -71,28 +216,41 @@ export default function AdminDashboard() {
 
   if (!profile?.isAdmin) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-brand-gray/30 px-6 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#f0f2f5] px-6 text-center">
         <div>
-          <h1 className="text-2xl font-brand font-bold text-brand-navy mb-2">无访问权限</h1>
-          <p className="text-sm text-brand-navy/60 max-w-md">
-            当前账号 <span className="font-semibold text-brand-navy">{user.email}</span> 不是管理员会话。请点击下方退出后重新登录，并在提示「管理员口令」时填写正确口令（默认 <code className="text-xs bg-white px-1 py-0.5 rounded">admin</code>）。
+          <h1 className="mb-2 text-xl font-medium text-[#303133]">无访问权限</h1>
+          <p className="max-w-md text-sm text-[#909399]">
+            当前账号 <span className="font-medium text-[#606266]">{user.email}</span> 不是管理员会话。请退出后回到本页，在「管理员口令」中填写正确口令（默认{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>）。
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-center">
           <button
             type="button"
             onClick={() => void logout()}
-            className="text-xs font-bold uppercase tracking-widest text-brand-navy border border-brand-gray px-6 py-3 rounded-full hover:bg-brand-gray/40 transition-colors"
+            className={`${ADMIN_BTN_DEFAULT} text-sm`}
           >
             退出登录
           </button>
-          <Link to="/" className="text-xs font-bold uppercase tracking-widest text-brand-beige hover:underline">
+          <Link to="/" className="text-sm text-[#409eff] hover:underline">
             返回商店首页
           </Link>
         </div>
       </div>
     );
   }
+
+  const adminTabMeta: Record<
+    'products' | 'categories' | 'orders' | 'promotions' | 'homeDecor' | 'settings',
+    { title: string; subtitle: string }
+  > = {
+    products: { title: '商品管理', subtitle: '库存列表 · 导入 / 新建 · 按更新时间排序' },
+    categories: { title: '分类管理', subtitle: '一级 / 二级 / 三级 · slug 与前台路由' },
+    orders: { title: '订单管理', subtitle: '查询、详情、发货与物流 · 本地数据' },
+    promotions: { title: '营销', subtitle: '活动卡片 · 启用状态' },
+    homeDecor: { title: '首页装修', subtitle: '首页区块与分类磁贴' },
+    settings: { title: '站点设置', subtitle: '站点名、低库存阈值、分类页 Hero 等' },
+  };
 
   const stats = [
     { label: 'Revenue', value: `€ ${totalRevenue.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -102,135 +260,181 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-brand-gray/30 font-sans text-brand-navy">
-      {/* Sidebar - Compact & Professional */}
-      <aside className="w-64 bg-white border-r border-brand-gray flex flex-col fixed h-full z-40">
-        <div className="p-8 border-b border-brand-gray">
-          <Link to="/" className="flex flex-col gap-1">
-            <span className="text-xl font-brand font-bold tracking-tighter text-brand-navy leading-none">HOMAIRE</span>
-            <span className="text-[9px] font-bold tracking-[0.4em] text-brand-beige uppercase">Executive Hub</span>
+    <div className="flex min-h-screen bg-[#f0f2f5] text-slate-800 antialiased">
+      <aside className="fixed left-0 top-0 z-40 flex h-full w-52 flex-col border-r border-slate-800 bg-[#001529] text-slate-200 shadow-sm">
+        <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-4">
+          <Link to="/" className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-sm font-semibold tracking-tight text-white">HOMAIRE</span>
+            <span className="text-[10px] text-slate-400">管理后台</span>
           </Link>
         </div>
-        
-        <nav className="flex-grow p-4 space-y-1">
+
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {[
-            { id: 'products', label: 'Inventory', icon: <Package className="w-4 h-4" /> },
-            { id: 'orders', label: 'Purchases', icon: <ShoppingBag className="w-4 h-4" /> },
-            { id: 'promotions', label: 'Campaigns', icon: <Tag className="w-4 h-4" /> },
-            { id: 'settings', label: 'Site & CMS', icon: <Settings className="w-4 h-4" /> },
-          ].map(tab => (
-            <button 
+            { id: 'products' as const, label: '商品', sub: 'Inventory', icon: <Package className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'categories' as const, label: '分类', sub: 'Taxonomy', icon: <Layers className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'orders' as const, label: '订单', sub: 'Orders', icon: <ShoppingBag className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'promotions' as const, label: '营销', sub: 'Promo', icon: <Tag className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'homeDecor' as const, label: '首页', sub: 'Home', icon: <LayoutTemplate className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'settings' as const, label: '设置', sub: 'Site', icon: <Settings className="h-4 w-4 shrink-0 opacity-80" /> },
+          ].map((tab) => (
+            <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab.id ? 'bg-brand-navy text-white shadow-lg' : 'text-brand-navy/40 hover:bg-brand-gray hover:text-brand-navy'}`}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-[#1677ff] text-white shadow-sm'
+                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
+              }`}
             >
               {tab.icon}
-              {tab.label}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{tab.label}</span>
+                <span className="block truncate text-[10px] text-slate-500">{tab.sub}</span>
+              </span>
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-brand-gray">
-          <div className="flex items-center gap-3 p-3 bg-brand-gray/50 rounded-2xl">
-            <div className="w-8 h-8 bg-brand-navy rounded-xl flex items-center justify-center font-bold text-xs uppercase text-white shadow-sm">
-              {user?.displayName?.[0] || 'A'}
+        <div className="shrink-0 border-t border-white/10 p-2">
+          <div className="flex items-center gap-2 rounded bg-black/20 px-2 py-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1677ff] text-xs font-semibold text-white">
+              {(user?.displayName?.[0] || user?.email?.[0] || 'A').toUpperCase()}
             </div>
-            <div className="flex-grow min-w-0">
-              <p className="text-[10px] font-bold truncate text-brand-navy uppercase tracking-tight">{user?.displayName || 'Admin'}</p>
-              <p className="text-[9px] text-brand-navy/40 truncate">{user?.email}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium text-white">{user?.displayName || 'Admin'}</p>
+              <p className="truncate text-[10px] text-slate-500">{user?.email}</p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="mt-2 w-full rounded border border-white/10 px-2 py-1.5 text-center text-[11px] text-slate-400 transition-colors hover:border-white/20 hover:text-white"
+          >
+            退出登录
+          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-grow ml-64 p-12">
-        <header className="flex justify-between items-center mb-12">
-          <div>
-            <h1 className="text-4xl font-brand font-bold text-brand-navy uppercase tracking-tighter leading-none">{activeTab}</h1>
-            <p className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-widest mt-2">Executive Overview / {activeTab} Management</p>
+      <main className="ml-52 flex min-h-screen min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 shadow-sm">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-slate-900">{adminTabMeta[activeTab].title}</h1>
+            <p className="truncate text-[11px] text-slate-500">{adminTabMeta[activeTab].subtitle}</p>
           </div>
-          
-          <div className="flex gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             {activeTab === 'products' && (
-              <button 
+              <button
+                type="button"
                 onClick={() => setIsImporting(true)}
-                className="bg-white text-brand-navy px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest border border-brand-gray flex items-center gap-2 hover:border-brand-navy transition-all shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-[#1677ff] hover:text-[#1677ff]"
               >
-                <Download className="w-3 h-3" /> Catalog Import
+                <Download className="h-3.5 w-3.5" />
+                批量导入
               </button>
             )}
-            {(activeTab === 'products' || activeTab === 'promotions') && (
-              <button 
+            {(activeTab === 'products' || activeTab === 'promotions' || activeTab === 'categories') && (
+              <button
+                type="button"
                 onClick={() => {
                   if (activeTab === 'products') setIsAddingProduct(true);
                   if (activeTab === 'promotions') setIsAddingPromo(true);
+                  if (activeTab === 'categories') {
+                    setCategoryModalParentId(null);
+                    setIsAddingCategory(true);
+                  }
                 }}
-                className="bg-brand-navy text-white px-8 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-brand-beige transition-all shadow-xl shadow-brand-navy/10"
+                className="inline-flex items-center gap-1.5 rounded bg-[#1677ff] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#4096ff]"
               >
-                <Plus className="w-3 h-3" /> New Entry
+                <Plus className="h-3.5 w-3.5" />
+                新建
               </button>
             )}
+            <Link
+              to="/"
+              className="hidden text-xs text-slate-500 hover:text-[#1677ff] sm:inline"
+            >
+              返回前台
+            </Link>
           </div>
         </header>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-4 gap-8 mb-12">
-          {stats.map((stat, i) => (
-            <div key={i} className="bg-white p-6 rounded-[2rem] border border-brand-gray shadow-sm transition-all hover:shadow-xl hover:border-brand-beige group">
-              <div className="flex justify-between items-start mb-4">
-                <div className={`${stat.bg} ${stat.color} p-3 rounded-2xl transition-transform group-hover:scale-110`}>
-                  {stat.icon}
-                </div>
-                <span className="text-[9px] font-bold text-brand-navy/30 uppercase tracking-[0.2em]">{stat.label}</span>
-              </div>
-              <p className="text-3xl font-brand font-bold text-brand-navy tracking-tighter">{stat.value}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-white rounded-[2rem] border border-brand-gray shadow-sm overflow-hidden p-2">
-          <div className="bg-white rounded-[1.5rem] overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+        {activeTab !== 'homeDecor' && (
+          <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-slate-200/80 bg-white px-4 py-2 sm:grid-cols-4">
+            {stats.map((stat, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-2 rounded border border-slate-100 bg-slate-50 px-3 py-2"
               >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-normal text-slate-600">{stat.label}</p>
+                  <p className="truncate text-lg font-semibold tabular-nums text-slate-900">{stat.value}</p>
+                </div>
+                <div className={`shrink-0 rounded p-1.5 ${stat.bg} ${stat.color}`}>{stat.icon}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex min-h-0 flex-1 flex-col p-3">
+          <div
+            className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-slate-200 bg-white shadow-sm ${
+              activeTab === 'homeDecor' ? '' : ''
+            }`}
+          >
+            <div className="min-h-0 flex-1 overflow-auto">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12 }}
+                >
                 {activeTab === 'products' && (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    {usingDemoFallback && (
+                      <div className="mx-3 mt-3 mb-1 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                        <p className="font-semibold text-amber-900">当前为演示商品目录（未写入本地库）</p>
+                        <p className="mt-1 text-amber-900/85 leading-snug">
+                          请使用「批量导入」上传 CSV，或「新建」添加商品。
+                        </p>
+                      </div>
+                    )}
+                    <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                      按更新时间排序 · 新导入与新建在最上方
+                    </p>
+                    <table className="w-full text-left text-sm">
                       <thead>
-                        <tr className="border-b border-brand-gray bg-brand-gray/20">
-                          <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Product Design</th>
-                          <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Category</th>
-                          <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Inventory</th>
-                          <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Price Index</th>
-                          <th className="px-8 py-5 text-right text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Actions</th>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">商品</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">分类</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">库存</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">价格</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-brand-gray">
-                        {products.map((product) => (
-                          <tr key={product.id} className="hover:bg-brand-gray/10 transition-colors group">
-                            <td className="px-8 py-5">
-                              <div className="flex items-center gap-4">
-                                <img src={product.images[0]} alt="" className="w-12 h-12 object-cover rounded-xl bg-brand-gray shadow-sm" />
-                                <span className="font-bold text-brand-navy uppercase text-xs tracking-tight">{product.name}</span>
+                      <tbody className="divide-y divide-slate-100">
+                        {inventoryProducts.map((product) => (
+                          <tr key={product.id} className="hover:bg-slate-50 transition-colors group">
+                            <td className="px-3 py-2">
+                              <div className="flex min-w-0 max-w-md items-center gap-2">
+                                <img src={product.images[0]} alt="" className="h-9 w-9 shrink-0 rounded border border-slate-200 bg-slate-100 object-cover" />
+                                <span className="line-clamp-2 font-medium leading-snug text-slate-800">{product.name}</span>
                               </div>
                             </td>
-                            <td className="px-8 py-5 text-brand-navy/60 text-xs font-medium capitalize tracking-tight">{product.category}</td>
-                            <td className="px-8 py-5">
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${product.stock < lowStockThreshold ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                {product.stock} Units
+                            <td className="px-3 py-2 text-xs text-slate-600">{product.category}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium tabular-nums ${product.stock < lowStockThreshold ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+                                {product.stock}
                               </span>
                             </td>
-                            <td className="px-8 py-5 font-bold text-brand-navy">€ {product.price.toLocaleString()}</td>
-                            <td className="px-8 py-5 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button onClick={() => setEditingProduct(product)} className="text-brand-navy/30 hover:text-brand-navy p-2 rounded-xl hover:bg-white transition-all"><Edit className="w-4 h-4" /></button>
-                                <button onClick={() => { if(confirm("Archive entry?")) deleteProduct(product.id); }} className="text-brand-navy/30 hover:text-red-500 p-2 rounded-xl hover:bg-white transition-all"><Trash2 className="w-4 h-4" /></button>
+                            <td className="px-3 py-2 font-medium tabular-nums text-slate-900">€{product.price.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right">
+                              <div className="flex justify-end gap-1">
+                                <button type="button" title="编辑" onClick={() => setEditingProduct(product)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Edit className="h-4 w-4" /></button>
+                                <button type="button" title="删除" onClick={() => { if(confirm('确定删除该商品？')) deleteProduct(product.id); }} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                               </div>
                             </td>
                           </tr>
@@ -240,75 +444,140 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-              {activeTab === 'orders' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-brand-gray bg-brand-gray/20">
-                        <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Order Identification</th>
-                        <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Sanctuary Delivery Details</th>
-                        <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Valuation</th>
-                        <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Shipment Status</th>
-                        <th className="px-8 py-5 text-right text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">Logistics Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-brand-gray">
-                      {orders.map((order) => (
-                        <tr key={order.id} className="hover:bg-brand-gray/10 transition-colors">
-                          <td className="px-8 py-5">
-                            <span className="font-bold text-brand-navy uppercase text-xs tracking-tight">#{order.id?.slice(-8).toUpperCase()}</span>
-                          </td>
-                          <td className="px-8 py-5">
-                            <div className="text-brand-navy font-bold text-xs uppercase tracking-tight">{order.shippingAddress?.fullName}</div>
-                            <div className="text-[10px] text-brand-navy/40 font-bold uppercase tracking-widest mt-1">{order.shippingAddress?.email}</div>
-                          </td>
-                          <td className="px-8 py-5 font-bold text-brand-navy">€ {order.total.toLocaleString()}</td>
-                          <td className="px-8 py-5">
-                            <select 
-                              value={order.status}
-                              onChange={(e) => updateOrderStatus(order.id!, e.target.value as any)}
-                              className="text-[10px] font-bold uppercase tracking-widest bg-brand-gray border-none rounded-lg focus:ring-2 focus:ring-brand-beige py-1.5 px-3 outline-none"
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="processing">Processing</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
-                          </td>
-                          <td className="px-8 py-5 text-right text-[10px] font-bold uppercase tracking-widest text-brand-navy/40">
-                            {new Date(order.createdAt?.seconds * 1000).toLocaleDateString()}
-                          </td>
+                {activeTab === 'categories' && (
+                  <div className="overflow-x-auto">
+                    <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                      最多三级；子级商品的 category 为子 slug 时，父级列表页也会展示。
+                    </p>
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">层级</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">封面</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">名称</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Slug</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">商品数</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {categories.map((cat) => {
+                          const level = getCategoryLevel(cat.id, categories);
+                          const productCount = countProductsInCategorySubtree(cat.slug, categories, inventoryProducts);
+                          const indent = (level - 1) * 14;
+                          const canAddChild = level < 3;
+                          return (
+                            <tr key={cat.id} className="hover:bg-slate-50 transition-colors group">
+                              <td className="px-3 py-2 text-xs tabular-nums text-slate-500">{level} 级</td>
+                              <td className="px-3 py-2">
+                                <img
+                                  src={cat.image}
+                                  alt=""
+                                  className="h-10 w-10 rounded border border-slate-200 bg-slate-100 object-cover"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <div style={{ paddingLeft: indent }} className="flex min-w-0 items-start gap-1.5">
+                                  {level > 1 ? (
+                                    <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
+                                  ) : (
+                                    <span className="w-3.5 shrink-0" aria-hidden />
+                                  )}
+                                  <div className="min-w-0">
+                                    <span className="block truncate font-medium text-slate-800">{cat.name}</span>
+                                    {cat.description ? (
+                                      <p className="text-[10px] text-brand-navy/40 font-medium mt-1 max-w-xs line-clamp-2">
+                                        {cat.description}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <Link
+                                  to={`/category/${cat.slug}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs font-medium text-[#1677ff] hover:underline"
+                                >
+                                  /{cat.slug}
+                                </Link>
+                              </td>
+                              <td className="px-3 py-2 text-xs tabular-nums text-slate-600">{productCount}</td>
+                              <td className="px-3 py-2 text-right">
+                                <div className="flex justify-end flex-wrap gap-2">
+                                  {canAddChild ? (
+                                    <button
+                                      type="button"
+                                      title="在此分类下新增子分类"
+                                      onClick={() => {
+                                        setEditingCategory(null);
+                                        setCategoryModalParentId(cat.id);
+                                        setIsAddingCategory(true);
+                                      }}
+                                      className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-[#1677ff] hover:bg-slate-50"
+                                    >
+                                      + 子类
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCategory(cat)}
+                                    className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const msg =
+                                        productCount > 0
+                                          ? `该分类（含子树）下约有 ${productCount} 件商品的 category 落在该范围内。删除仅移除后台分类配置，不会自动修改商品字段。确定删除？`
+                                          : '确定删除此分类？';
+                                      if (confirm(msg)) void deleteCategory(cat.id);
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+              {activeTab === 'orders' && <OrderManagement />}
 
               {activeTab === 'promotions' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8">
+                <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-2 lg:grid-cols-3">
                   {promotions.map((promo) => (
-                    <div key={promo.id} className="border border-brand-gray rounded-[2rem] overflow-hidden flex bg-white hover:border-brand-beige transition-all group">
-                      <div className="w-40 h-auto bg-brand-gray overflow-hidden">
-                        <img src={promo.imageUrl} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    <div key={promo.id} className="flex overflow-hidden rounded border border-slate-200 bg-white hover:border-[#1677ff]/40">
+                      <div className="h-auto w-28 shrink-0 bg-slate-100">
+                        <img src={promo.imageUrl} alt="" className="h-full min-h-[88px] w-full object-cover" />
                       </div>
-                      <div className="p-8 flex-grow flex flex-col justify-between">
+                      <div className="flex min-w-0 flex-1 flex-col justify-between p-3">
                         <div>
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-brand font-bold text-brand-navy uppercase tracking-tight">{promo.title}</h3>
-                            <span className="text-[9px] font-bold uppercase tracking-[0.2em] py-1 px-2.5 rounded-full bg-brand-gray text-brand-navy/60 border border-brand-gray">{promo.type}</span>
+                          <div className="mb-1 flex items-start justify-between gap-2">
+                            <h3 className="line-clamp-2 text-sm font-semibold text-slate-900">{promo.title}</h3>
+                            <span className="shrink-0 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                              {promo.type === 'hero' ? '大图' : promo.type === 'card' ? '卡片' : '公告'}
+                            </span>
                           </div>
-                          <p className="text-[10px] text-brand-navy/40 font-bold uppercase tracking-widest leading-relaxed">{promo.subtitle}</p>
+                          <p className="line-clamp-2 text-xs text-slate-500">{promo.subtitle}</p>
                         </div>
-                        <div className="flex justify-between items-center mt-6">
+                        <div className="mt-2 flex items-center justify-between gap-2">
                           <button 
+                            type="button"
                             onClick={() => togglePromotion(promo.id, !promo.active)}
-                            className={`text-[9px] font-bold uppercase tracking-[0.3em] px-4 py-1.5 rounded-full transition-all ${promo.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-brand-gray text-brand-navy/20 border border-brand-gray'}`}
+                            className={`rounded px-2 py-1 text-[11px] font-medium ${promo.active ? 'border border-emerald-200 bg-emerald-50 text-emerald-800' : 'border border-slate-200 bg-slate-50 text-slate-500'}`}
                           >
-                            {promo.active ? 'Operational' : 'Disabled'}
+                            {promo.active ? '已启用' : '已停用'}
                           </button>
-                          <button onClick={() => deletePromotion(promo.id)} className="text-brand-navy/20 hover:text-red-500 p-2 rounded-xl hover:bg-red-50 transition-all"><Trash2 className="w-4 h-4" /></button>
+                          <button type="button" onClick={() => deletePromotion(promo.id)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
                     </div>
@@ -316,8 +585,14 @@ export default function AdminDashboard() {
                 </div>
               )}
 
+              {activeTab === 'homeDecor' && (
+                <div className="p-5">
+                  <HomeDecorEditor config={config} configLoading={configLoading} onSave={updateConfig} />
+                </div>
+              )}
+
               {activeTab === 'settings' && (
-                <div className="p-8 max-w-2xl">
+                <div className="p-5">
                   <Fragment key={config ? 'site-cfg' : 'site-cfg-pending'}>
                     <SiteSettingsForm config={config} onSave={updateConfig} />
                   </Fragment>
@@ -325,53 +600,40 @@ export default function AdminDashboard() {
               )}
             </motion.div>
           </AnimatePresence>
-        </div>
-      </div>
-
-        {/* Floating Admin Badge */}
-        <div className="fixed bottom-10 right-10 bg-brand-navy text-white p-6 rounded-[2.5rem] shadow-3xl flex items-center gap-6 z-50 border border-white/5 border-b-4 border-b-brand-beige">
-           <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center animate-pulse">
-              <div className="w-3 h-3 bg-white rounded-full shadow-lg" />
-           </div>
-           <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] leading-none mb-2">Live Node Status</p>
-              <p className="text-[9px] font-bold text-white/30 uppercase tracking-[0.3em]">Operational / Secured</p>
-           </div>
+            </div>
+          </div>
         </div>
       </main>
 
       {/* Product Management Modal */}
       {(isAddingProduct || editingProduct) && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-8">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              className="absolute inset-0 bg-brand-charcoal/80 backdrop-blur-md" 
-              onClick={() => { setIsAddingProduct(false); setEditingProduct(null); }} 
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <div
+              className={ADMIN_MODAL_MASK}
+              onClick={() => { setIsAddingProduct(false); setEditingProduct(null); }}
+              role="presentation"
             />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="relative w-full max-w-4xl bg-white rounded-[4rem] shadow-3xl overflow-hidden max-h-[90vh] flex flex-col border border-brand-gray"
-            >
-               <div className="p-12 border-b border-brand-gray flex justify-between items-center bg-brand-gray/20">
+            <div className={`${ADMIN_MODAL_DIALOG} max-w-4xl`}>
+               <div className={ADMIN_MODAL_HEADER}>
                   <div>
-                    <h2 className="text-4xl font-brand font-bold uppercase tracking-tighter text-brand-navy">
-                       {editingProduct ? 'Update Entry' : 'New Listing'}
+                    <h2 className={ADMIN_MODAL_TITLE}>
+                       {editingProduct ? '编辑商品' : '新建商品'}
                     </h2>
-                    <p className="text-brand-navy/30 font-bold uppercase text-[10px] tracking-[0.3em] mt-3">Product / Asset / Management</p>
+                    <p className={ADMIN_MODAL_SUBTITLE}>保存后写入本地库</p>
                   </div>
                   <button 
+                     type="button"
                      onClick={() => { setIsAddingProduct(false); setEditingProduct(null); }}
-                     className="w-14 h-14 bg-white hover:bg-brand-gray text-brand-navy/30 hover:text-brand-navy transition-all rounded-[2rem] flex items-center justify-center shadow-sm border border-brand-gray"
+                     className={ADMIN_MODAL_CLOSE}
                   >
-                     <X className="w-6 h-6" />
+                     <X className="h-5 w-5" />
                   </button>
                </div>
                
-               <div className="flex-grow overflow-y-auto p-12 custom-scrollbar">
+               <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar">
                   <ProductForm 
-                    initialData={editingProduct || undefined} 
+                    initialData={editingProduct || undefined}
+                    categoryOptions={buildCategorySelectOptions(categories)}
                     onSave={async (data) => {
                       if (editingProduct) await updateProduct(editingProduct.id, data);
                       else await addProduct(data as any);
@@ -380,75 +642,142 @@ export default function AdminDashboard() {
                     }} 
                   />
                </div>
-            </motion.div>
+            </div>
          </div>
+      )}
+
+      {(isAddingCategory || editingCategory) && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div className={ADMIN_MODAL_MASK} onClick={closeCategoryModal} role="presentation" />
+          <div className={`${ADMIN_MODAL_DIALOG} max-w-lg`}>
+            <div className={ADMIN_MODAL_HEADER}>
+              <div>
+                <h2 className={ADMIN_MODAL_TITLE}>
+                  {editingCategory ? '编辑分类' : '新建分类'}
+                </h2>
+                <p className={ADMIN_MODAL_SUBTITLE}>Slug 创建后勿改，以免影响商品与前台链接</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCategoryModal}
+                className={ADMIN_MODAL_CLOSE}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar">
+              <Fragment key={editingCategory?.id ?? `new-${categoryModalParentId ?? 'root'}`}>
+                <CategoryForm
+                  initial={editingCategory}
+                  allCategories={categories}
+                  allProducts={inventoryProducts}
+                  defaultParentId={editingCategory ? undefined : categoryModalParentId}
+                  onSave={async (payload) => {
+                  try {
+                    if (editingCategory) {
+                      await updateCategory(editingCategory.id, payload);
+                    } else {
+                      await addCategory(payload);
+                    }
+                    closeCategoryModal();
+                  } catch (e) {
+                    const raw = e instanceof Error ? e.message : String(e);
+                    let msg = raw;
+                    try {
+                      const parsed = JSON.parse(raw) as { error?: string };
+                      if (parsed?.error) msg = parsed.error;
+                    } catch {
+                      /* use raw */
+                    }
+                    window.alert(msg);
+                  }
+                }}
+              />
+              </Fragment>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Promo Modal */}
       {isAddingPromo && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-8">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              className="absolute inset-0 bg-brand-charcoal/80 backdrop-blur-md" 
-              onClick={() => setIsAddingPromo(false)} 
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <div
+              className={ADMIN_MODAL_MASK}
+              onClick={() => setIsAddingPromo(false)}
+              role="presentation"
             />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="relative w-full max-w-2xl bg-white rounded-[4rem] shadow-3xl overflow-hidden border border-brand-gray"
-            >
-               <div className="p-12 border-b border-brand-gray flex justify-between items-center bg-brand-gray/20 font-brand">
-                  <h2 className="text-4xl font-bold uppercase tracking-tighter text-brand-navy">Visual Campaign</h2>
-                  <button onClick={() => setIsAddingPromo(false)} className="bg-white p-4 rounded-2xl border border-brand-gray text-brand-navy/30 hover:text-brand-navy transition-colors"><X /></button>
+            <div className={`${ADMIN_MODAL_DIALOG} max-w-lg`}>
+               <div className={ADMIN_MODAL_HEADER}>
+                  <h2 className={ADMIN_MODAL_TITLE}>新建营销活动</h2>
+                  <button type="button" onClick={() => setIsAddingPromo(false)} className={ADMIN_MODAL_CLOSE}><X className="h-5 w-5" /></button>
                </div>
-               <div className="p-12">
+               <div className="min-h-0 max-h-[calc(90vh-52px)] flex-1 overflow-y-auto p-4 sm:p-5">
                   <PromoForm onSave={async (data) => {
                      await addPromotion(data as any);
                      setIsAddingPromo(false);
                   }} />
                </div>
-            </motion.div>
+            </div>
          </div>
       )}
 
       {/* Import Modal */}
       {isImporting && (
-        <ImportModal 
+        <ImportModal
+          allowedCategorySlugs={categories.map((c) => c.slug)}
           onImport={async (data) => {
             await bulkAddProducts(data);
-            setIsImporting(false);
-          }} 
-          onClose={() => setIsImporting(false)} 
+          }}
+          onClose={() => setIsImporting(false)}
         />
       )}
     </div>
   );
 }
 
-function ImportModal({ onImport, onClose }: { onImport: (data: any[]) => Promise<void>, onClose: () => void }) {
+function formatImportError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/QuotaExceeded|NS_ERROR_DOM_QUOTA_REACHED|quota/i.test(raw)) {
+    return '浏览器 localStorage 已满或单次数据过大。已自动压缩每条商品的描述/详情/图片数量；若仍失败请分批导入，或在浏览器中清除本站本地数据后重试。';
+  }
+  try {
+    const j = JSON.parse(raw) as { error?: string };
+    if (j?.error && /QuotaExceeded|quota/i.test(j.error)) {
+      return '浏览器 localStorage 已满。请减少单次导入条数，或清除本站本地数据后重试。';
+    }
+    if (j?.error) return j.error;
+  } catch {
+    /* 非 JSON */
+  }
+  return raw;
+}
+
+function ImportModal({
+  onImport,
+  onClose,
+  allowedCategorySlugs,
+}: {
+  onImport: (data: any[]) => Promise<void>;
+  onClose: () => void;
+  /** 后台已有分类 slug；导入时推断结果只使用该集合（空数组则不限） */
+  allowedCategorySlugs?: string[];
+}) {
+  const importParseOpts = useMemo(
+    () =>
+      ({
+        defaultCategory: 'sofas',
+        ...(allowedCategorySlugs && allowedCategorySlugs.length > 0
+          ? { allowedCategorySlugs }
+          : {}),
+      }) satisfies Parameters<typeof processImportedProductRows>[1],
+    [allowedCategorySlugs]
+  );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importSuccessCount, setImportSuccessCount] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const processData = (rawData: any[]) => {
-    return rawData.map(item => ({
-      name: item.name || item.Name || '',
-      price: Number(item.price || item.Price || 0),
-      category: (item.category || item.Category || 'sofas').toLowerCase(),
-      stock: Number(item.stock || item.Stock || 0),
-      description: item.description || item.Description || '',
-      detailHtml: item.detailHtml || item.DetailHtml || item.html || item.HTML || '',
-      images: typeof item.images === 'string' ? item.images.split(',').map((s: string) => s.trim()) : (Array.isArray(item.images) ? item.images : []),
-      features: typeof item.features === 'string' ? item.features.split(/[\n,]/).map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(item.features) ? item.features : []),
-      subCategory: item.subCategory || item.SubCategory || '',
-      videoUrl: item.videoUrl || item.VideoUrl || item.video || item.Video || '',
-      manualUrl: item.manualUrl || item.ManualUrl || item.manual || item.Manual || '',
-      onSale: Boolean(item.onSale || item.OnSale || false),
-      discountPrice: Number(item.discountPrice || item.DiscountPrice || 0)
-    }));
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -459,43 +788,79 @@ function ImportModal({ onImport, onClose }: { onImport: (data: any[]) => Promise
 
     const reader = new FileReader();
 
-    if (file.name.endsWith('.csv')) {
-      Papa.parse(file, {
-        header: true,
-        complete: async (results) => {
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.csv')) {
+      const resetFileInput = () => {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+      const readerCsv = new FileReader();
+      readerCsv.onload = () => {
+        void (async () => {
           try {
-            const products = processData(results.data);
-            await onImport(products);
-          } catch (err: any) {
-            setError(err.message);
+            let text = String(readerCsv.result ?? '');
+            text = text.replace(/^\uFEFF/, '');
+            const results = Papa.parse<Record<string, unknown>>(text, {
+              header: true,
+              skipEmptyLines: true,
+            });
+            const products = processImportedProductRows((results.data ?? []) as unknown[], importParseOpts);
+            const toSave = await enrichImportedProductsWithShortTitles(products);
+            if (toSave.length === 0) {
+              const sample = (results.data as unknown[])[0];
+              const keys =
+                sample && typeof sample === 'object' && !Array.isArray(sample)
+                  ? Object.keys(sample as object)
+                      .slice(0, 12)
+                      .join(', ')
+                  : '（无首行）';
+              throw new Error(
+                `没有解析到有效商品（0 条）。首行字段示例：${keys}。若为中文表头，请确认文件为 UTF-8 编码 CSV；扩展名需为 .csv`
+              );
+            }
+            await onImport(toSave);
+            setImportSuccessCount(toSave.length);
+            setError(null);
+          } catch (err: unknown) {
+            setError(formatImportError(err));
           } finally {
             setLoading(false);
+            resetFileInput();
           }
-        },
-        error: (err) => {
-          setError(err.message);
-          setLoading(false);
-        }
-      });
-    } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        })();
+      };
+      readerCsv.onerror = () => {
+        setError('读取 CSV 文件失败，请重试或检查文件是否被占用。');
+        setLoading(false);
+        resetFileInput();
+      };
+      readerCsv.readAsText(file, 'UTF-8');
+    } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
       reader.onload = async (evt) => {
         try {
-          const bstr = evt.target?.result;
-          const wb = XLSX.read(bstr, { type: 'binary' });
+          const buf = evt.target?.result;
+          if (!(buf instanceof ArrayBuffer)) throw new Error('无法读取表格文件');
+          const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
           const wsname = wb.SheetNames[0];
           const ws = wb.Sheets[wsname];
           const data = XLSX.utils.sheet_to_json(ws);
-          const products = processData(data);
-          await onImport(products);
-        } catch (err: any) {
-          setError(err.message);
+          const products = processImportedProductRows(data as unknown[], importParseOpts);
+          const toSave = await enrichImportedProductsWithShortTitles(products);
+          if (toSave.length === 0) {
+            throw new Error('没有有效数据行：请检查首行表头含 name，且至少一行有商品名称');
+          }
+          await onImport(toSave);
+          setImportSuccessCount(toSave.length);
+          setError(null);
+        } catch (err: unknown) {
+          setError(formatImportError(err));
         } finally {
           setLoading(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }
       };
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
     } else {
-      setError('Unsupported file format. Please use CSV or XLSX.');
+      setError('不支持的文件格式，请使用 CSV 或 XLSX。');
       setLoading(false);
     }
   };
@@ -505,91 +870,413 @@ function ImportModal({ onImport, onClose }: { onImport: (data: any[]) => Promise
     setError(null);
     try {
       const data = JSON.parse(input);
-      if (!Array.isArray(data)) throw new Error('Data must be an array of product objects');
-      await onImport(data);
-    } catch (e: any) {
-      setError(e.message || 'Invalid JSON format');
+      if (!Array.isArray(data)) throw new Error('JSON 须为商品对象组成的数组');
+      const products = processImportedProductRows(data, importParseOpts);
+      const toSave = await enrichImportedProductsWithShortTitles(products);
+      if (toSave.length === 0) {
+        throw new Error('没有有效商品：每项至少包含非空的 name 字段');
+      }
+      await onImport(toSave);
+      setImportSuccessCount(toSave.length);
+      setError(null);
+    } catch (e: unknown) {
+      setError(formatImportError(e));
     } finally {
       setLoading(false);
     }
   };
 
+  const downloadXlsxTemplate = () => {
+    const rows = getProductImportTemplateSheetRows();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'products');
+    XLSX.writeFile(wb, 'homaire-product-import-template.xlsx');
+  };
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-8">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-brand-charcoal/80 backdrop-blur-md" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full max-w-xl bg-white rounded-3xl p-8 flex flex-col shadow-2xl overflow-hidden">
-        <header className="flex justify-between items-center mb-8 border-b border-brand-gray pb-6">
-          <h2 className="text-2xl font-brand font-bold text-brand-navy">BULK IMPORT</h2>
-          <button onClick={onClose} className="p-2 hover:bg-brand-gray rounded-lg transition-colors"><X className="w-6 h-6 text-brand-navy/20 hover:text-brand-navy" /></button>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
+      <div className={ADMIN_MODAL_MASK} onClick={onClose} role="presentation" />
+      <div
+        className={`${ADMIN_MODAL_DIALOG} max-w-2xl`}
+        onClick={(ev) => ev.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header className={ADMIN_MODAL_HEADER}>
+          <h2 className={ADMIN_MODAL_TITLE}>批量导入商品</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className={ADMIN_MODAL_CLOSE}
+            aria-label="关闭"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </header>
 
-        <div className="space-y-8">
-          <div className="grid grid-cols-2 gap-6">
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center justify-center p-10 border-2 border-dashed border-brand-gray rounded-[2rem] hover:border-brand-beige hover:bg-brand-gray/20 transition-all group"
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {importSuccessCount != null ? (
+          <div className="space-y-4 py-8 text-center">
+            <p className="text-base font-semibold text-emerald-700">已成功导入 {importSuccessCount} 条商品</p>
+            <p className="mx-auto max-w-md text-sm text-slate-600">
+              数据已写入本机浏览器。请在「商品」列表查看；长文案已自动截断以适配存储。
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setImportSuccessCount(null);
+                onClose();
+              }}
+              className="rounded bg-[#1677ff] px-6 py-2 text-sm font-medium text-white hover:bg-[#4096ff]"
             >
-              <Download className="w-10 h-10 text-brand-navy/10 group-hover:text-brand-beige mb-3" />
-              <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-widest">Upload Dataset</span>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                className="hidden" 
-                accept=".csv, .xlsx, .xls"
+              完成
+            </button>
+          </div>
+        ) : (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-[#dcdfe6] bg-[#fafafa] px-4 py-6 text-sm text-[#606266] hover:border-[#409eff] hover:text-[#409eff]"
+            >
+              <Download className="h-8 w-8 text-[#c0c4cc]" />
+              <span>点击选择 CSV / XLSX 文件</span>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept=".csv,.xlsx,.xls"
               />
             </button>
-            <div className="bg-brand-gray/30 p-6 rounded-[2rem] border border-brand-gray flex flex-col justify-center">
-              <h3 className="text-[10px] font-bold text-brand-navy uppercase tracking-[0.2em] mb-4">Schema Headers</h3>
-              <p className="text-[9px] text-brand-navy/60 leading-relaxed font-bold uppercase tracking-widest">
-                <code className="bg-white/50 px-1.5 py-0.5 rounded mr-1">name</code> 
-                <code className="bg-white/50 px-1.5 py-0.5 rounded mr-1">price</code> 
-                <code className="bg-white/50 px-1.5 py-0.5 rounded mr-1">category</code> 
-                <code className="bg-white/50 px-1.5 py-0.5 rounded">stock</code>
+            <div className="rounded-sm border border-[#ebeef5] bg-[#fafafa] p-4 text-sm text-[#606266]">
+              <h3 className="mb-2 text-sm font-medium text-[#303133]">表头说明</h3>
+              <p className="mb-2 text-xs leading-relaxed text-[#909399]">
+                必填列：
+                <code className="mx-0.5 rounded bg-white px-1 py-0.5 text-[#606266]">name</code>
+                <code className="mx-0.5 rounded bg-white px-1 py-0.5 text-[#606266]">price</code>
+                <code className="mx-0.5 rounded bg-white px-1 py-0.5 text-[#606266]">category</code>
+                <code className="mx-0.5 rounded bg-white px-1 py-0.5 text-[#606266]">stock</code>
               </p>
+              <p className="text-xs leading-relaxed text-[#909399]">
+                可选：shortTitle（店铺主标题，≤{PRODUCT_IMPORT_SHORT_TITLE_MAX} 字）、description、images、features、subCategory、videoUrl、manualUrl、onSale、discountPrice、detailHtml 等。大健云仓导出含「产品型号」列时会自动映射。
+                <span className="mt-1 block text-[#606266]">
+                  category 留空或无法识别时，会根据名称/描述/子类/卖点自动归入后台已有分类（与标准 8 类关键词规则）；仍可在列中显式填写 slug 或中文类名（如「沙发」「床」）。
+                </span>
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadProductImportTemplateCsv()}
+                  className={ADMIN_BTN_DEFAULT}
+                >
+                  下载 CSV 模板
+                </button>
+                <button type="button" onClick={downloadXlsxTemplate} className={ADMIN_BTN_DEFAULT}>
+                  下载 XLSX 模板
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative py-2">
             <div className="absolute inset-0 flex items-center" aria-hidden="true">
-              <div className="w-full border-t border-brand-gray"></div>
+              <div className="w-full border-t border-[#ebeef5]" />
             </div>
-            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-[0.3em] text-brand-navy/20">
-              <span className="bg-white px-6">JSON Integration</span>
+            <div className="relative flex justify-center">
+              <span className="bg-white px-3 text-xs text-[#909399]">或粘贴 JSON 数组导入</span>
             </div>
           </div>
 
-          <textarea 
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder='[{"name": "Nordic Sofa", "price": 1200, "category": "sofas", "stock": 5}]'
-            className="w-full h-32 bg-brand-gray border-none rounded-[1.5rem] text-[10px] font-mono p-6 focus:ring-2 focus:ring-brand-beige outline-none"
+            placeholder='[{"name": "北欧沙发", "price": 1200, "category": "sofas", "stock": 5}]'
+            className={`${ADMIN_FORM_TEXTAREA} min-h-[120px] font-mono text-xs`}
           />
 
           {error && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-red-100">
+            <div className="rounded-sm border border-[#fde2e2] bg-[#fef0f0] px-3 py-2 text-sm text-[#f56c6c]">
               {error}
             </div>
           )}
 
-          <div className="flex justify-end gap-4 pt-4">
-            <button onClick={onClose} className="px-8 py-3 text-[10px] font-bold text-brand-navy/40 uppercase tracking-widest hover:text-brand-navy transition-colors">Abort</button>
-            <button 
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className={ADMIN_BTN_DEFAULT}>
+              取消
+            </button>
+            <button
+              type="button"
               onClick={handleJsonImport}
               disabled={loading || !input.trim()}
-              className="bg-brand-navy text-white px-10 py-4 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-brand-beige disabled:opacity-50 transition-all shadow-3xl"
+              className={ADMIN_BTN_PRIMARY}
             >
-              {loading ? 'Synthesizing...' : 'Execute JSON Import'}
+              {loading ? '导入中…' : '执行 JSON 导入'}
             </button>
           </div>
+          </div>
+        )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
 
+function parseCategoryFeaturedIdsInput(raw: string): string[] | undefined {
+  const ids = raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 16);
+  return ids.length ? ids : undefined;
+}
+
+function CategoryForm({
+  initial,
+  allCategories,
+  allProducts,
+  defaultParentId,
+  onSave,
+}: {
+  initial?: Category | null;
+  allCategories: Category[];
+  allProducts: Product[];
+  defaultParentId?: string | null;
+  onSave: (data: Omit<Category, 'id'>) => void;
+}) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [slug, setSlug] = useState(initial?.slug ?? '');
+  const [image, setImage] = useState(initial?.image ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [parentId, setParentId] = useState<string | null>(
+    initial?.parentId ?? defaultParentId ?? null,
+  );
+  const [sortOrder, setSortOrder] = useState<number>(initial?.sortOrder ?? 0);
+  const [featuredIdsRaw, setFeaturedIdsRaw] = useState(() => (initial?.featuredProductIds ?? []).join(', '));
+
+  const forbiddenParentIds = useMemo(() => {
+    if (!initial?.id) return new Set<string>();
+    const d = getDescendantIds(initial.id, allCategories);
+    d.add(initial.id);
+    return d;
+  }, [initial?.id, allCategories]);
+
+  const parentOptions = useMemo(() => {
+    return flattenCategoryTreeSorted(allCategories).filter((c) => {
+      if (forbiddenParentIds.has(c.id)) return false;
+      return getCategoryLevel(c.id, allCategories) < 3;
+    });
+  }, [allCategories, forbiddenParentIds]);
+
+  const previewLevel = useMemo(() => {
+    if (!parentId) return 1;
+    const p = allCategories.find((c) => c.id === parentId);
+    if (!p) return 1;
+    return getCategoryLevel(p.id, allCategories) + 1;
+  }, [parentId, allCategories]);
+
+  useEffect(() => {
+    setName(initial?.name ?? '');
+    setSlug(initial?.slug ?? '');
+    setImage(initial?.image ?? '');
+    setDescription(initial?.description ?? '');
+    setParentId(initial?.parentId ?? defaultParentId ?? null);
+    setSortOrder(typeof initial?.sortOrder === 'number' ? initial.sortOrder : 0);
+    setFeaturedIdsRaw((initial?.featuredProductIds ?? []).join(', '));
+  }, [initial, defaultParentId]);
+
+  const productsInSlug = useMemo(() => {
+    const k = slug.trim().toLowerCase();
+    if (!k) return [];
+    return allProducts.filter((p) => (p.category || '').trim().toLowerCase() === k);
+  }, [allProducts, slug]);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({
+          name: name.trim(),
+          slug: slug.trim().toLowerCase(),
+          image: image.trim(),
+          description: description.trim() || undefined,
+          parentId: parentId || null,
+          sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+          featuredProductIds: parseCategoryFeaturedIdsInput(featuredIdsRaw) ?? [],
+        });
+      }}
+      className="space-y-4"
+    >
+      <div>
+        <label className={ADMIN_FORM_LABEL}>显示名称</label>
+        <input
+          required
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={ADMIN_FORM_CONTROL}
+        />
+      </div>
+      <div>
+        <label className={ADMIN_FORM_LABEL}>父级分类（可选）</label>
+        <select
+          value={parentId ?? ''}
+          onChange={(e) => setParentId(e.target.value === '' ? null : e.target.value)}
+          className={`${ADMIN_FORM_CONTROL} cursor-pointer`}
+          aria-label="父级分类"
+        >
+          <option value="">（一级分类 · 无父级）</option>
+          {parentOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {getCategoryPathLabel(c.id, allCategories)}
+            </option>
+          ))}
+        </select>
+        <p className={ADMIN_FORM_HINT}>
+          最多三级；当前将位于 <span className="text-[#409eff]">{previewLevel}</span> 级。仅可选择未满三级的节点作为父级。
+        </p>
+      </div>
+      <div>
+        <label className={ADMIN_FORM_LABEL}>同级排序（可选）</label>
+        <input
+          type="number"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(parseInt(e.target.value, 10) || 0)}
+          className={ADMIN_FORM_CONTROL}
+          aria-label="同级排序"
+        />
+        <p className={ADMIN_FORM_HINT}>数字越小，在后台与部分列表中越靠前。</p>
+      </div>
+      <div>
+        <label className={ADMIN_FORM_LABEL}>URL 别名（slug）</label>
+        <input
+          required
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+          disabled={!!initial}
+          title={initial ? 'Slug 创建后不可修改，以免破坏已有商品与前台链接' : undefined}
+          className={`${ADMIN_FORM_CONTROL} disabled:cursor-not-allowed disabled:opacity-50`}
+        />
+        <p className={ADMIN_FORM_HINT}>
+          前台地址 /category/&lt;slug&gt;，仅小写字母、数字与连字符。
+        </p>
+      </div>
+      <div>
+        <label className={ADMIN_FORM_LABEL}>封面图</label>
+        <p className={`${ADMIN_FORM_HINT} mb-2`}>
+          与首页「按功能选购」宫格 slug 一致时，此图会用作该格封面（除非在「首页装修」里单独上传/填写了配图 URL）。
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          {image ? (
+            <img src={image} alt="" className="h-24 w-24 rounded-sm border border-[#dcdfe6] bg-[#f5f7fa] object-cover" />
+          ) : null}
+          <div className="flex min-w-[200px] flex-grow flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={uploading}
+              className={`${ADMIN_BTN_DEFAULT} inline-flex items-center gap-2 disabled:opacity-50`}
+            >
+              <ImageIcon className="h-4 w-4" />
+              {uploading ? '上传中…' : '本地上传'}
+            </button>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (ev) => {
+                const file = ev.target.files?.[0];
+                if (!file) return;
+                setUploading(true);
+                try {
+                  setImage(await fileToDataUrl(file));
+                } finally {
+                  setUploading(false);
+                  ev.target.value = '';
+                }
+              }}
+            />
+            <input
+              type="url"
+              value={image}
+              onChange={(e) => setImage(e.target.value)}
+              placeholder="或粘贴图片 URL"
+              className={`${ADMIN_FORM_CONTROL} font-mono text-xs`}
+            />
+          </div>
+        </div>
+      </div>
+      <div>
+        <label className={ADMIN_FORM_LABEL}>描述（可选）</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className={ADMIN_FORM_TEXTAREA}
+        />
+      </div>
+      <div>
+        <label className={ADMIN_FORM_LABEL}>
+          首页品类楼层 · 主推商品 id（可选）
+        </label>
+        <p className={`${ADMIN_FORM_HINT} mb-2`}>
+          逗号 / 空格 / 分号分隔，最多 16 个。顺序即首页展示顺序；与「首页装修」同 slug 配置合并时，装修项优先。当前 slug 下共有{' '}
+          <span className="text-[#409eff]">{productsInSlug.length}</span> 个商品。
+        </p>
+        <input
+          type="text"
+          value={featuredIdsRaw}
+          onChange={(e) => setFeaturedIdsRaw(e.target.value)}
+          placeholder="例如 prod_abc, prod_def"
+          className={`${ADMIN_FORM_CONTROL} font-mono text-xs`}
+        />
+        {productsInSlug.length > 0 ? (
+          <div className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-sm border border-[#ebeef5] bg-[#fafafa] p-2">
+            <p className="px-1 text-xs text-[#909399]">快速追加 id（点击）</p>
+            {productsInSlug.slice(0, 24).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setFeaturedIdsRaw((prev) => {
+                    const parts = prev.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+                    if (parts.includes(p.id)) return prev;
+                    if (parts.length >= 16) return prev;
+                    return prev.trim() ? `${prev.trim()}, ${p.id}` : p.id;
+                  });
+                }}
+                className="flex w-full min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-xs font-mono text-[#606266] hover:bg-[#ecf5ff]"
+              >
+                <span className="truncate text-[#606266]">{p.shortTitle || p.name}</span>
+                <span className="shrink-0 text-[#909399]">{p.id}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <button type="submit" className={`${ADMIN_BTN_PRIMARY} w-full`}>
+        保存
+      </button>
+    </form>
+  );
+}
+
 // Sub-components for forms
-function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (data: Partial<Product>) => void }) {
+function ProductForm({
+  initialData,
+  onSave,
+  categoryOptions,
+}: {
+  initialData?: Product;
+  onSave: (data: Partial<Product>) => void;
+  categoryOptions?: { slug: string; name: string }[];
+}) {
   const imagesFileInputRef = useRef<HTMLInputElement>(null);
   const manualFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -597,21 +1284,41 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [newImageUrl, setNewImageUrl] = useState('');
 
-  const [formData, setFormData] = useState<Partial<Product>>(initialData || {
-    name: '',
-    price: 0,
-    description: '',
-    detailHtml: '',
-    category: 'sofas',
-    subCategory: '',
-    images: [],
-    features: [],
-    videoUrl: '',
-    manualUrl: '',
-    stock: 0,
-    onSale: false,
-    discountPrice: 0
-  });
+  const staticCategoryOptions = [
+    { slug: 'sofas', name: '沙发' },
+    { slug: 'beds', name: '床' },
+    { slug: 'tables', name: '桌' },
+    { slug: 'chairs', name: '椅' },
+    { slug: 'garden', name: '户外/花园' },
+    { slug: 'lighting', name: '灯具' },
+    { slug: 'storage', name: '收纳' },
+    { slug: 'decor', name: '装饰' },
+  ];
+  const selectCategoryOptions =
+    categoryOptions && categoryOptions.length > 0 ? categoryOptions : staticCategoryOptions;
+  const defaultCategorySlug = selectCategoryOptions[0]?.slug ?? 'sofas';
+
+  const [formData, setFormData] = useState<Partial<Product>>(() =>
+    initialData
+      ? { ...initialData, featuredOnHome: initialData.featuredOnHome ?? false }
+      : {
+          name: '',
+          shortTitle: undefined,
+          price: 0,
+          description: '',
+          detailHtml: '',
+          category: defaultCategorySlug,
+          subCategory: '',
+          images: [],
+          features: [],
+          videoUrl: '',
+          manualUrl: '',
+          stock: 0,
+          onSale: false,
+          discountPrice: 0,
+          featuredOnHome: false,
+        }
+  );
 
   const uploadImagesToStorage = async (files: FileList) => {
     setUploadingImages(true);
@@ -626,7 +1333,7 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
         images: [...(prev.images || []), ...uploadedUrls],
       }));
     } catch (e: any) {
-      setUploadError(e?.message || 'Upload failed');
+      setUploadError(e?.message || '图片上传失败');
     } finally {
       setUploadingImages(false);
       if (imagesFileInputRef.current) imagesFileInputRef.current.value = '';
@@ -640,7 +1347,7 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
       const url = await fileToDataUrl(file);
       setFormData((prev) => ({ ...prev, manualUrl: url }));
     } catch (e: any) {
-      setUploadError(e?.message || 'Manual upload failed');
+      setUploadError(e?.message || '说明书上传失败');
     } finally {
       setUploadingManual(false);
       if (manualFileInputRef.current) manualFileInputRef.current.value = '';
@@ -648,253 +1355,338 @@ function ProductForm({ initialData, onSave }: { initialData?: Product, onSave: (
   };
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-12">
-      <div className="grid grid-cols-2 gap-10">
-        <div className="space-y-8">
+    <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Core Metadata</label>
-            <div className="space-y-6">
-              <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Design Name" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Master Narrative" rows={4} className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige cursor-pointer">
-                <option value="sofas">Sofas</option>
-                <option value="beds">Beds</option>
-                <option value="tables">Tables</option>
-                <option value="chairs">Chairs</option>
-                <option value="garden">Garden</option>
-                <option value="lighting">Lighting</option>
-                <option value="storage">Storage</option>
-                <option value="decor">Decor</option>
-              </select>
-              <input type="text" value={formData.subCategory || ''} onChange={e => setFormData({...formData, subCategory: e.target.value})} placeholder="Series / Subcategory (optional)" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+            <label className={ADMIN_FORM_SECTION}>基础信息</label>
+            <div className="mt-2 space-y-3">
+              <div>
+                <label className={ADMIN_FORM_LABEL}>商品名称（完整型号）</label>
+                <input
+                  required
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="完整型号 / 供应链名称"
+                  maxLength={PRODUCT_IMPORT_NAME_MAX}
+                  className={ADMIN_FORM_CONTROL}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_FORM_LABEL}>独立站主标题（可选）</label>
+                <input
+                  type="text"
+                  value={formData.shortTitle ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData({
+                      ...formData,
+                      shortTitle: v.trim() === '' ? undefined : v,
+                    });
+                  }}
+                  placeholder="留空则前台使用商品名称；建议与 CSV shortTitle 一致"
+                  maxLength={PRODUCT_IMPORT_SHORT_TITLE_MAX}
+                  className={ADMIN_FORM_CONTROL}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_FORM_LABEL}>商品描述</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="卖点与场景描述"
+                  rows={4}
+                  className={ADMIN_FORM_TEXTAREA}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_FORM_LABEL}>所属分类</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className={`${ADMIN_FORM_CONTROL} cursor-pointer`}
+                >
+                  {formData.category && !selectCategoryOptions.some((o) => o.slug === formData.category) ? (
+                    <option value={formData.category}>{formData.category}（未在分类管理中）</option>
+                  ) : null}
+                  {selectCategoryOptions.map((o) => (
+                    <option key={o.slug} value={o.slug}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={ADMIN_FORM_LABEL}>子系列 / 子类（可选）</label>
+                <input
+                  type="text"
+                  value={formData.subCategory || ''}
+                  onChange={(e) => setFormData({ ...formData, subCategory: e.target.value })}
+                  placeholder="如系列名、子品类"
+                  className={ADMIN_FORM_CONTROL}
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[#606266]">
+                <input
+                  type="checkbox"
+                  checked={!!formData.featuredOnHome}
+                  onChange={(e) => setFormData({ ...formData, featuredOnHome: e.target.checked })}
+                  className="h-4 w-4 rounded border-[#dcdfe6] text-[#409eff] focus:ring-[#c6e2ff]"
+                />
+                <span>首页品类楼层主推（与同分类装修/分类 id 合并）</span>
+              </label>
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Core Selling Points</label>
+            <label className={ADMIN_FORM_SECTION}>核心卖点</label>
+            <p className={`${ADMIN_FORM_HINT} mb-2`}>每行一条，展示在详情页首屏。</p>
             <textarea
               value={(formData.features || []).join('\n')}
-              onChange={(e) => setFormData({
-                ...formData,
-                features: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean),
-              })}
-              placeholder={'One selling point per line\nCompact modular footprint\nEasy everyday care'}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  features: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean),
+                })
+              }
+              placeholder={'模块化省空间\n日常易打理'}
               rows={5}
-              className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+              className={ADMIN_FORM_TEXTAREA}
             />
-            <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-              These appear in the first screen of the product detail page.
-            </p>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Detail HTML</label>
+            <label className={ADMIN_FORM_SECTION}>详情 HTML（可选）</label>
+            <p className={`${ADMIN_FORM_HINT} mb-2`}>
+              留空时前台会根据描述与卖点自动生成图文模块。
+            </p>
             <textarea
               value={formData.detailHtml || ''}
               onChange={(e) => setFormData({ ...formData, detailHtml: e.target.value })}
-              placeholder={'<section class="detail-block">\n  <div><img src="https://..." alt="Lifestyle scene" /></div>\n  <div>\n    <p class="eyebrow">Living Scenario</p>\n    <h3>Designed around real rooms</h3>\n    <p>Write the product story here.</p>\n  </div>\n</section>\n\n<section class="detail-block reverse">\n  <div><img src="https://..." alt="Material detail" /></div>\n  <div>\n    <p class="eyebrow">Material & Comfort</p>\n    <h3>Comfort that works every day</h3>\n    <p>Write a second image-text module here.</p>\n  </div>\n</section>'}
+              placeholder='<section class="detail-block">…</section>'
               rows={8}
-              className="w-full bg-brand-gray border border-brand-gray rounded-[1.5rem] p-6 text-[11px] font-mono tracking-wide text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
+              className={`${ADMIN_FORM_TEXTAREA} font-mono text-xs`}
             />
-            <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-              Optional. If empty, the storefront builds this section from description and selling points.
-            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-6">
-              <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Valuation & Assets</label>
-              <input required type="number" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} placeholder="Base Valuation" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
-              <input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: parseInt(e.target.value)})} placeholder="Current Units" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <label className={ADMIN_FORM_SECTION}>价格与库存</label>
+              <div>
+                <label className={ADMIN_FORM_LABEL}>售价（€）</label>
+                <input
+                  required
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                  className={ADMIN_FORM_CONTROL}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_FORM_LABEL}>库存</label>
+                <input
+                  required
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value, 10) })}
+                  className={ADMIN_FORM_CONTROL}
+                />
+              </div>
             </div>
-            <div className="space-y-6">
-              <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Campaign status</label>
-              <label className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-brand-navy/60 cursor-pointer group">
-                <input type="checkbox" checked={formData.onSale} onChange={e => setFormData({...formData, onSale: e.target.checked})} className="w-5 h-5 rounded border-brand-gray text-brand-navy focus:ring-brand-beige" />
-                <span className="group-hover:text-brand-navy transition-colors">Operational Sale</span>
+            <div className="space-y-3">
+              <label className={ADMIN_FORM_SECTION}>促销</label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[#606266]">
+                <input
+                  type="checkbox"
+                  checked={!!formData.onSale}
+                  onChange={(e) => setFormData({ ...formData, onSale: e.target.checked })}
+                  className="h-4 w-4 rounded border-[#dcdfe6] text-[#409eff] focus:ring-[#c6e2ff]"
+                />
+                <span>促销中</span>
               </label>
               {formData.onSale && (
-                <input type="number" value={formData.discountPrice} onChange={e => setFormData({...formData, discountPrice: parseFloat(e.target.value)})} placeholder="Discounted Valuation" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+                <div>
+                  <label className={ADMIN_FORM_LABEL}>促销价（€）</label>
+                  <input
+                    type="number"
+                    value={formData.discountPrice}
+                    onChange={(e) => setFormData({ ...formData, discountPrice: parseFloat(e.target.value) })}
+                    className={ADMIN_FORM_CONTROL}
+                  />
+                </div>
               )}
             </div>
           </div>
 
-          <div className="bg-brand-gray/40 border border-brand-gray rounded-[2rem] p-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-navy/40 mb-3">Lean Listing Mode</p>
-            <p className="text-sm leading-relaxed text-brand-navy/60 font-medium">
-              This form only asks for fields that directly affect the storefront: product copy, category, core selling points, price, stock, sale status, gallery, video, and optional installation PDF.
-            </p>
+          <div className="rounded-sm border border-[#ebeef5] bg-[#fafafa] p-3 text-xs leading-relaxed text-[#909399]">
+            本表单仅包含影响前台的字段：文案、分类、卖点、价格库存、促销、图库、视频与可选安装 PDF。
           </div>
         </div>
 
-	        <div className="space-y-8">
-	          <div>
-	            <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Visual Documentation</label>
-	            <div className="space-y-4">
-                <div className="bg-brand-beige/5 border border-brand-beige/20 rounded-2xl p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-navy/50 mb-2">Image Standard</p>
-                  <p className="text-xs leading-relaxed text-brand-navy/55 font-medium">
-                    Recommended: square 1:1 JPG/PNG, at least 1600 x 1600 px, product centered with comfortable margins. Non-square images will be center-cropped on the storefront.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => imagesFileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-brand-gray text-[10px] font-bold uppercase tracking-widest text-brand-navy hover:border-brand-beige transition-colors disabled:opacity-50"
-                    disabled={uploadingImages}
-                  >
-                    <ImageIcon className="w-4 h-4" />
-                    {uploadingImages ? 'Uploading...' : 'Upload Images'}
-                  </button>
-                  <input
-                    ref={imagesFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      if (!e.target.files || e.target.files.length === 0) return;
-                      void uploadImagesToStorage(e.target.files);
-                    }}
-                  />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-navy/30">
-                    {initialData?.id ? 'Saved To Product Folder' : 'Saved To Drafts Folder'}
-                  </span>
-                </div>
-
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={newImageUrl}
-                    onChange={(e) => setNewImageUrl(e.target.value)}
-                    placeholder="Paste Image URL (optional)"
-                    className="flex-grow bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = newImageUrl.trim();
-                      if (!url) return;
-                      setFormData((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
-                      setNewImageUrl('');
-                    }}
-                    className="px-6 py-4 rounded-xl bg-brand-navy text-white text-[10px] font-bold uppercase tracking-widest hover:bg-brand-beige transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                {uploadError && (
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
-                    {uploadError}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-3 gap-4">
-                  {(formData.images || []).slice(0, 9).map((url, idx) => (
-                    <div key={`${url}-${idx}`} className="relative group">
-                      <img
-                        src={url}
-                        alt=""
-                        className="w-full aspect-square object-cover rounded-[1.5rem] bg-brand-gray border border-brand-gray shadow-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            images: (prev.images || []).filter((_, i) => i !== idx),
-                          }));
-                        }}
-                        className="absolute top-3 right-3 w-9 h-9 rounded-xl bg-white/90 border border-brand-gray text-brand-navy/40 hover:text-red-600 hover:border-red-200 hover:bg-white transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
-                        aria-label="Remove image"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-                  Upload 6-10 square images for the strongest product detail layout.
-                </p>
-	            </div>
-	          </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Product Video</label>
-              <input
-                type="url"
-                value={formData.videoUrl || ''}
-                onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
-                placeholder="Paste Product Video URL (optional)"
-                className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
-              />
-              <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-                Optional. If present, it appears as the first selectable media item.
-              </p>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Installation PDF</label>
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <input
-                    type="url"
-                    value={formData.manualUrl || ''}
-                    onChange={(e) => setFormData({ ...formData, manualUrl: e.target.value })}
-                    placeholder="Paste PDF Download URL (optional)"
-                    className="flex-grow bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => manualFileInputRef.current?.click()}
-                    disabled={uploadingManual}
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-brand-gray text-[10px] font-bold uppercase tracking-widest text-brand-navy hover:border-brand-beige transition-colors disabled:opacity-50"
-                  >
-                    <Download className="w-4 h-4" />
-                    {uploadingManual ? 'Uploading...' : 'Upload PDF'}
-                  </button>
-                </div>
+        <div className="space-y-4">
+          <div>
+            <label className={ADMIN_FORM_SECTION}>商品图片</label>
+            <div className="mt-2 space-y-3">
+              <div className="rounded-sm border border-[#ebeef5] bg-[#fafafa] p-3 text-xs text-[#909399]">
+                建议 1:1 方图，至少约 1600×1600；非方图前台会居中裁切。
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => imagesFileInputRef.current?.click()}
+                  className={`${ADMIN_BTN_DEFAULT} inline-flex items-center gap-2 disabled:opacity-50`}
+                  disabled={uploadingImages}
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  {uploadingImages ? '上传中…' : '本地上传'}
+                </button>
                 <input
-                  ref={manualFileInputRef}
+                  ref={imagesFileInputRef}
                   type="file"
-                  accept="application/pdf,.pdf"
+                  accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    void uploadManualToStorage(file);
+                    if (!e.target.files || e.target.files.length === 0) return;
+                    void uploadImagesToStorage(e.target.files);
                   }}
                 />
-                {formData.manualUrl && (
-                  <div className="flex items-center justify-between gap-4 bg-brand-gray/40 border border-brand-gray rounded-xl px-4 py-3">
-                    <a href={formData.manualUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate text-[10px] font-bold uppercase tracking-widest text-brand-navy/50 hover:text-brand-navy">
-                      {formData.manualUrl}
-                    </a>
+                <span className="text-xs text-[#909399]">
+                  {initialData?.id ? '已关联当前商品' : '新建草稿'}
+                </span>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  placeholder="粘贴图片 URL（可选）"
+                  className={`${ADMIN_FORM_CONTROL} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = newImageUrl.trim();
+                    if (!url) return;
+                    setFormData((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
+                    setNewImageUrl('');
+                  }}
+                  className={ADMIN_BTN_PRIMARY}
+                >
+                  添加
+                </button>
+              </div>
+
+              {uploadError && (
+                <div className="rounded-sm border border-[#fde2e2] bg-[#fef0f0] px-3 py-2 text-sm text-[#f56c6c]">
+                  {uploadError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-2">
+                {(formData.images || []).slice(0, 9).map((url, idx) => (
+                  <div key={`${url}-${idx}`} className="group relative">
+                    <img
+                      src={url}
+                      alt=""
+                      className="aspect-square w-full rounded-sm border border-[#dcdfe6] bg-[#f5f7fa] object-cover"
+                    />
                     <button
                       type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, manualUrl: '' }))}
-                      className="shrink-0 text-brand-navy/30 hover:text-red-600"
-                      aria-label="Remove manual URL"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          images: (prev.images || []).filter((_, i) => i !== idx),
+                        }));
+                      }}
+                      className="absolute top-1 right-1 flex h-8 w-8 items-center justify-center rounded-sm border border-[#dcdfe6] bg-white/95 text-[#909399] opacity-0 transition-opacity hover:border-[#f56c6c] hover:text-[#f56c6c] group-hover:opacity-100"
+                      aria-label="移除图片"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                )}
-                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-                  Optional. If empty, the product page will hide the PDF download button.
-                </p>
+                ))}
               </div>
-            </div>
 
+              <p className={ADMIN_FORM_HINT}>上传 6～10 张方图，详情页图文区展示更完整。</p>
+            </div>
+          </div>
+
+          <div>
+            <label className={ADMIN_FORM_SECTION}>商品视频</label>
+            <input
+              type="url"
+              value={formData.videoUrl || ''}
+              onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
+              placeholder="视频地址（可选）"
+              className={ADMIN_FORM_CONTROL}
+            />
+            <p className={ADMIN_FORM_HINT}>填写后作为详情页首个可切换媒体。</p>
+          </div>
+
+          <div>
+            <label className={ADMIN_FORM_SECTION}>安装说明 PDF</label>
+            <div className="mt-2 space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={formData.manualUrl || ''}
+                  onChange={(e) => setFormData({ ...formData, manualUrl: e.target.value })}
+                  placeholder="PDF 下载地址（可选）"
+                  className={`${ADMIN_FORM_CONTROL} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={() => manualFileInputRef.current?.click()}
+                  disabled={uploadingManual}
+                  className={`${ADMIN_BTN_DEFAULT} inline-flex shrink-0 items-center gap-2 disabled:opacity-50`}
+                >
+                  <Download className="h-4 w-4" />
+                  {uploadingManual ? '上传中…' : '上传 PDF'}
+                </button>
+              </div>
+              <input
+                ref={manualFileInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void uploadManualToStorage(file);
+                }}
+              />
+              {formData.manualUrl && (
+                <div className="flex items-center justify-between gap-2 rounded-sm border border-[#ebeef5] bg-[#fafafa] px-3 py-2">
+                  <a
+                    href={formData.manualUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 truncate text-xs text-[#409eff] hover:underline"
+                  >
+                    {formData.manualUrl}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, manualUrl: '' }))}
+                    className="shrink-0 text-[#909399] hover:text-[#f56c6c]"
+                    aria-label="清除 PDF"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              <p className={ADMIN_FORM_HINT}>留空则详情页不显示下载按钮。</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 pt-10 border-t border-brand-gray">
-        <button type="submit" className="bg-brand-navy text-white px-16 py-6 rounded-full text-[11px] font-bold uppercase tracking-widest hover:bg-brand-beige transition-all shadow-3xl">
-          {initialData ? 'Update Core Entry' : 'Synchronize Product'}
+      <div className="flex justify-end border-t border-[#ebeef5] pt-4">
+        <button type="submit" className={ADMIN_BTN_PRIMARY}>
+          {initialData ? '保存修改' : '创建商品'}
         </button>
       </div>
     </form>
@@ -922,7 +1714,7 @@ function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
       const url = await fileToDataUrl(file);
       setFormData((prev) => ({ ...prev, imageUrl: url }));
     } catch (e: any) {
-      setPromoUploadError(e?.message || 'Promotion image upload failed');
+      setPromoUploadError(e?.message || '活动图上传失败');
     } finally {
       setUploadingPromoImage(false);
       if (promoImageFileInputRef.current) promoImageFileInputRef.current.value = '';
@@ -930,33 +1722,49 @@ function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
   };
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-8">
-      <div className="grid grid-cols-2 gap-6">
+    <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Content Directive</label>
-          <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+          <label className={ADMIN_FORM_LABEL}>标题</label>
+          <input
+            required
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            className={ADMIN_FORM_CONTROL}
+          />
         </div>
         <div>
-          <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Interface Type</label>
-          <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige">
-            <option value="hero">Hero Large</option>
-            <option value="card">Promo Card</option>
-            <option value="sale">Announcement</option>
+          <label className={ADMIN_FORM_LABEL}>展示类型</label>
+          <select
+            value={formData.type}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value as Promotion['type'] })}
+            className={`${ADMIN_FORM_CONTROL} cursor-pointer`}
+          >
+            <option value="hero">首页大图</option>
+            <option value="card">推广卡片</option>
+            <option value="sale">公告条</option>
           </select>
         </div>
       </div>
       <div>
-        <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Core Asset URL</label>
-        <div className="flex gap-3">
-          <input required type="text" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} className="flex-grow bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+        <label className={ADMIN_FORM_LABEL}>配图地址</label>
+        <div className="mt-1 flex gap-2">
+          <input
+            required
+            type="text"
+            value={formData.imageUrl}
+            onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+            className={`${ADMIN_FORM_CONTROL} min-w-0 flex-1`}
+          />
           <button
             type="button"
             onClick={() => promoImageFileInputRef.current?.click()}
             disabled={uploadingPromoImage}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-brand-gray text-[10px] font-bold uppercase tracking-widest text-brand-navy hover:border-brand-beige transition-colors disabled:opacity-50"
+            className={`${ADMIN_BTN_DEFAULT} inline-flex shrink-0 items-center gap-2 disabled:opacity-50`}
           >
-            <ImageIcon className="w-4 h-4" />
-            {uploadingPromoImage ? 'Uploading...' : 'Upload'}
+            <ImageIcon className="h-4 w-4" />
+            {uploadingPromoImage ? '上传中…' : '上传'}
           </button>
         </div>
         <input
@@ -971,29 +1779,39 @@ function PromoForm({ onSave }: { onSave: (data: Partial<Promotion>) => void }) {
           }}
         />
         {promoUploadError && (
-          <div className="mt-3 text-[10px] font-bold uppercase tracking-widest text-red-600 bg-red-50 border border-red-100 rounded-xl p-4">
+          <div className="mt-2 rounded-sm border border-[#fde2e2] bg-[#fef0f0] px-3 py-2 text-sm text-[#f56c6c]">
             {promoUploadError}
           </div>
         )}
         {formData.imageUrl && (
-          <div className="mt-4 aspect-[16/9] overflow-hidden rounded-2xl bg-brand-gray border border-brand-gray">
-            <img src={formData.imageUrl} alt="" className="w-full h-full object-cover" />
+          <div className="mt-3 aspect-video overflow-hidden rounded-sm border border-[#dcdfe6] bg-[#f5f7fa]">
+            <img src={formData.imageUrl} alt="" className="h-full w-full object-cover" />
           </div>
         )}
-        <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.3em] text-brand-navy/20">
-          Hero images work best at 16:9 or wider. Promo cards can use square or portrait crops.
-        </p>
+        <p className={ADMIN_FORM_HINT}>大图建议 16:9 或更宽；卡片可用方图或竖图。</p>
       </div>
       <div>
-        <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Sub-Narrative</label>
-        <input required type="text" value={formData.subtitle} onChange={e => setFormData({...formData, subtitle: e.target.value})} className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+        <label className={ADMIN_FORM_LABEL}>副标题</label>
+        <input
+          required
+          type="text"
+          value={formData.subtitle}
+          onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
+          className={ADMIN_FORM_CONTROL}
+        />
       </div>
       <div>
-        <label className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.3em] block mb-4">Destination link</label>
-        <input type="text" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} placeholder="/collections/new" className="w-full bg-brand-gray border border-brand-gray rounded-xl p-4 text-[11px] font-bold uppercase tracking-widest text-brand-navy outline-none focus:ring-2 focus:ring-brand-beige" />
+        <label className={ADMIN_FORM_LABEL}>跳转链接</label>
+        <input
+          type="text"
+          value={formData.link}
+          onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+          placeholder="/collections/new"
+          className={ADMIN_FORM_CONTROL}
+        />
       </div>
-      <button type="submit" className="w-full bg-brand-navy text-white py-6 rounded-full text-[11px] font-bold uppercase tracking-[0.3em] hover:bg-brand-beige transition-all shadow-3xl">
-        Establish Campaign
+      <button type="submit" className={`${ADMIN_BTN_PRIMARY} w-full`}>
+        创建活动
       </button>
     </form>
   );

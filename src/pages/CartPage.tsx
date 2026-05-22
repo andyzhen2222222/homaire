@@ -2,9 +2,20 @@ import { useCart } from '../components/CartContext';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash2, Plus, Minus, ArrowRight, ShieldCheck, Truck } from 'lucide-react';
+import { useStoreConfig } from '../hooks/useAdminData';
+import { formatStoreMoney, getShippingFlatFee, getShippingFreeThreshold } from '../lib/storeShipping';
+import { displayStoreProductTitle } from '../lib/storeShortTitle';
+
+const CART_ROW_TITLE_MAX = 52;
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, totalPrice, itemCount } = useCart();
+  const { config } = useStoreConfig();
+  const freeTh = getShippingFreeThreshold(config);
+  const flatFee = getShippingFlatFee(config);
+  const shipComplimentary = totalPrice > freeTh;
+  const shipLine = shipComplimentary ? 'COMPLIMENTARY' : formatStoreMoney(flatFee, config?.currency);
+  const estTotal = shipComplimentary ? totalPrice : totalPrice + flatFee;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-32 bg-white min-h-screen">
@@ -25,7 +36,9 @@ export default function CartPage() {
           {/* Item List */}
           <div className="lg:col-span-2 space-y-16">
             <AnimatePresence>
-              {items.map((item) => (
+              {items.map((item) => {
+                const rowTitle = displayStoreProductTitle(item, CART_ROW_TITLE_MAX);
+                return (
                 <motion.div 
                   key={item.id}
                   layout
@@ -35,12 +48,12 @@ export default function CartPage() {
                   className="flex gap-10 pb-16 border-b border-brand-gray group"
                 >
                   <Link to={`/product/${item.id}`} className="w-40 sm:w-64 aspect-[4/5] bg-brand-gray rounded-[2rem] flex-shrink-0 overflow-hidden border border-brand-gray transition-all shadow-sm relative group-hover:shadow-xl">
-                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                    <img src={item.images[0]} alt={rowTitle} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                   </Link>
-                  <div className="flex-grow flex flex-col justify-between py-4">
+                  <div className="flex-grow flex flex-col justify-between py-4 min-w-0">
                     <div>
-                      <div className="flex justify-between items-start mb-4">
-                        <Link to={`/product/${item.id}`} className="text-3xl font-brand font-bold uppercase tracking-tighter text-brand-navy hover:text-brand-beige transition-colors leading-tight">{item.name}</Link>
+                      <div className="flex justify-between items-start gap-4 mb-4">
+                        <Link to={`/product/${item.id}`} className="text-3xl font-brand font-bold uppercase tracking-tighter text-brand-navy hover:text-brand-beige transition-colors leading-tight min-w-0 line-clamp-3 break-words hyphens-auto">{rowTitle}</Link>
                         <button 
                           onClick={() => removeItem(item.id)}
                           className="text-brand-navy/20 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-brand-gray"
@@ -72,7 +85,8 @@ export default function CartPage() {
                     </div>
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
           </div>
 
@@ -87,14 +101,14 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="uppercase tracking-[0.2em] text-[10px]">Logistics / Handling</span>
-                  <span className={totalPrice > 500 ? 'text-emerald-600' : 'text-brand-navy'}>
-                    {totalPrice > 500 ? 'COMPLIMENTARY' : '€ 49.95'}
+                  <span className={shipComplimentary ? 'text-emerald-600' : 'text-brand-navy'}>
+                    {shipLine}
                   </span>
                 </div>
               </div>
               <div className="flex justify-between text-4xl font-brand font-bold text-brand-navy mb-12 uppercase tracking-tighter pt-4">
                 <span>EST. TOTAL</span>
-                <span>€ {(totalPrice > 500 ? totalPrice : totalPrice + 49.95).toLocaleString()}</span>
+                <span>{formatStoreMoney(estTotal, config?.currency)}</span>
               </div>
               <button 
                 className="w-full bg-brand-navy text-white py-6 rounded-full uppercase font-bold tracking-widest text-[11px] flex items-center justify-center gap-4 hover:bg-brand-beige transition-all group shadow-3xl"

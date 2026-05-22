@@ -3,32 +3,33 @@ import { Product } from '../types';
 import { productsData } from '../data/products';
 import { getLocalProducts, getLocalProductsByCategory, getLocalProductById, subscribeLocalDb } from '../lib/localDb';
 
-const mergeWithMockProduct = (product: Product): Product => {
-  const mock = productsData.find((item) => item.id === product.id);
-  return mock ? { ...mock, ...product } : product;
-};
-
+/**
+ * 优先使用 localStorage 商品。
+ * 若本地一条都没有（例如刚剔除种子、尚未导入），则临时展示 `productsData` 演示目录，避免全站空白；一旦有写入本地的商品则只显示本地数据。
+ */
 export function useProducts(categorySlug?: string) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usingDemoFallback, setUsingDemoFallback] = useState(false);
 
   useEffect(() => {
     const sync = () => {
       const raw = categorySlug ? getLocalProductsByCategory(categorySlug) : getLocalProducts();
-      let list = raw.map((p) => mergeWithMockProduct({ ...p }));
-      if (list.length === 0) {
-        list = (categorySlug ? productsData.filter((p) => p.category === categorySlug) : productsData).map(
-          mergeWithMockProduct
-        );
+      if (raw.length > 0) {
+        setProducts(raw.map((p) => ({ ...p })));
+        setUsingDemoFallback(false);
+      } else {
+        const demo = categorySlug ? productsData.filter((p) => p.category === categorySlug) : productsData;
+        setProducts(demo.map((p) => ({ ...p })));
+        setUsingDemoFallback(true);
       }
-      setProducts(list);
       setLoading(false);
     };
     sync();
     return subscribeLocalDb(sync);
   }, [categorySlug]);
 
-  return { products, loading };
+  return { products, loading, usingDemoFallback };
 }
 
 export function useProduct(id: string) {
@@ -44,10 +45,10 @@ export function useProduct(id: string) {
       }
       const found = getLocalProductById(id);
       if (found) {
-        setProduct(mergeWithMockProduct({ ...found }));
+        setProduct({ ...found });
       } else {
-        const mock = productsData.find((p) => p.id === id);
-        setProduct(mock ? mergeWithMockProduct(mock) : null);
+        const demo = productsData.find((p) => p.id === id);
+        setProduct(demo ? { ...demo } : null);
       }
       setLoading(false);
     };

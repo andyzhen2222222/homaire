@@ -6,9 +6,13 @@ import { useState, useMemo } from 'react';
 import { useCart } from '../components/CartContext';
 import { DEFAULT_CATEGORY_HEROES } from '../data/categoryHeroes';
 import { useStoreConfig } from '../hooks/useAdminData';
+import { displayStoreProductTitle } from '../lib/storeShortTitle';
 
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000';
+
+/** 分类栅格 `text-base`，与首页卡片一致 */
+const CATEGORY_GRID_TITLE_MAX = 56;
 
 export default function CategoryPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -221,7 +225,9 @@ export default function CategoryPage() {
         {/* Product Grid */}
         <div className="flex-grow">
           <div className={`grid grid-cols-1 sm:grid-cols-2 ${showFilters ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-x-8 gap-y-20`}>
-            {sortedProducts.map((product, i) => (
+            {sortedProducts.map((product, i) => {
+              const listTitle = displayStoreProductTitle(product, CATEGORY_GRID_TITLE_MAX);
+              return (
               <motion.div
                 key={product.id}
                 layout
@@ -234,7 +240,7 @@ export default function CategoryPage() {
                   <div className="aspect-[4/5] bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray shadow-sm rounded-2xl">
                     <img 
                       src={product.images[0]} 
-                      alt={product.name} 
+                      alt={listTitle} 
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                     />
                 <div className="absolute top-4 left-4">
@@ -256,9 +262,9 @@ export default function CategoryPage() {
                       Add To Collection
                     </button>
                   </div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-base font-bold uppercase tracking-tight mb-1 text-brand-navy group-hover:text-brand-beige transition-colors leading-tight font-brand">{product.name}</h3>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold uppercase tracking-tight mb-1 text-brand-navy group-hover:text-brand-beige transition-colors leading-tight font-brand line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
                       <p className="text-brand-navy/30 text-[9px] uppercase font-bold tracking-widest">Series: {product.subCategory || 'Classic'}</p>
                     </div>
                     <div className="text-right">
@@ -269,7 +275,8 @@ export default function CategoryPage() {
                   </div>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
           
           {sortedProducts.length === 0 && (

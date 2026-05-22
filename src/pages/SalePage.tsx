@@ -4,6 +4,9 @@ import { Link } from 'react-router-dom';
 import { Tag, Zap, Percent, ArrowRight, Clock, ShoppingCart } from 'lucide-react';
 import { useMemo } from 'react';
 import { useCart } from '../components/CartContext';
+import { displayStoreProductTitle } from '../lib/storeShortTitle';
+
+const SALE_GRID_TITLE_MAX = 56;
 
 export default function SalePage() {
   const { products, loading } = useProducts();
@@ -66,7 +69,9 @@ export default function SalePage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-10 gap-y-20">
-          {saleProducts.map((product, i) => (
+          {saleProducts.map((product, i) => {
+            const listTitle = displayStoreProductTitle(product, SALE_GRID_TITLE_MAX);
+            return (
             <motion.div
               key={product.id}
               initial={{ opacity: 0 }}
@@ -79,7 +84,7 @@ export default function SalePage() {
                 <div className="aspect-[4/5] bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray transition-all shadow-sm rounded-[2rem]">
                   <img 
                     src={product.images[0]} 
-                    alt={product.name} 
+                    alt={listTitle} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                   />
                   
@@ -107,7 +112,7 @@ export default function SalePage() {
                 </div>
 
                 <div className="px-2">
-                  <h3 className="text-base font-brand font-bold uppercase tracking-tight mb-2 text-brand-navy group-hover:text-brand-beige transition-colors">{product.name}</h3>
+                  <h3 className="text-base font-brand font-bold uppercase tracking-tight mb-2 text-brand-navy group-hover:text-brand-beige transition-colors line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
                   <div className="flex items-center gap-4">
                     <span className="text-xl font-bold text-brand-beige">€ {(product.discountPrice || product.price).toLocaleString()}</span>
                     <span className="text-xs font-bold text-brand-navy/20 line-through">€ {product.price.toLocaleString()}</span>
@@ -115,7 +120,8 @@ export default function SalePage() {
                 </div>
               </Link>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
 
         {saleProducts.length === 0 && (

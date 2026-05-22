@@ -1,0 +1,3 @@
+name,price,category,stock,description
+Sample Import Chair,129.99,chairs,12,CSV fixture for admin bulk import test
+Sample Import Decor,45,decor,50,Second row with default cover image

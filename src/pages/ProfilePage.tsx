@@ -4,6 +4,7 @@ import { LogOut, User as UserIcon, Package, MapPin, Settings, Heart, Truck, Cloc
 import { Navigate, Link } from 'react-router-dom';
 import { useUserOrders } from '../hooks/useUserData';
 import { useState } from 'react';
+import { displayStoreProductTitle } from '../lib/storeShortTitle';
 
 export default function ProfilePage() {
   const { user, profile, loading: authLoading, logout } = useAuth();
@@ -139,7 +140,9 @@ export default function ProfilePage() {
                                   </div>
                                 </div>
                                 <div className="flex-grow">
-                                  <h4 className="text-base font-brand font-bold uppercase tracking-tight text-brand-navy">{item.name}</h4>
+                                  <h4 className="text-base font-brand font-bold uppercase tracking-tight text-brand-navy line-clamp-2 break-words hyphens-auto">
+                                    {displayStoreProductTitle({ name: item.name })}
+                                  </h4>
                                   <p className="text-[10px] text-brand-navy/40 font-bold uppercase tracking-[0.2em] mt-1">Qty: {item.quantity} / Unit Price: € {item.price.toLocaleString()}</p>
                                 </div>
                                 <div className="text-right">

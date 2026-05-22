@@ -17,11 +17,33 @@ export interface AuthUser {
   emailVerified: boolean;
 }
 
+export type LoginWithCredentialsParams = {
+  email: string;
+  displayName?: string;
+  /** 与 VITE_LOCAL_ADMIN_PASSWORD 一致（未配置时默认 admin）则为管理员 */
+  adminPassword: string;
+  /** 为 true 时：口令不正确则不写入会话，并返回错误（用于 /admin 登录） */
+  requireMatchingAdminPassword?: boolean;
+};
+
+export type LoginWithCredentialsResult = { ok: true } | { ok: false; error: string };
+
+function getExpectedAdminPassword(): string {
+  const configured = import.meta.env.VITE_LOCAL_ADMIN_PASSWORD;
+  if (configured === undefined || configured === null || String(configured).length === 0) {
+    return 'admin';
+  }
+  return String(configured);
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  /** 连续弹窗登录（页头「Login」等），仍可用 */
   login: () => Promise<void>;
+  /** 表单登录；可选要求管理员口令必须正确 */
+  loginWithCredentials: (params: LoginWithCredentialsParams) => Promise<LoginWithCredentialsResult>;
   logout: () => Promise<void>;
 }
 
@@ -61,21 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback(async () => {
-    const emailInput = window.prompt('登录邮箱（数据保存在本机浏览器）', 'demo@local.test');
-    if (emailInput === null) return;
-    const email = emailInput.trim() || 'demo@local.test';
-    const nameInput = window.prompt('显示名称（可留空则用邮箱前缀）', email.split('@')[0] || 'User');
-    if (nameInput === null) return;
-    const displayName = nameInput.trim() || email.split('@')[0] || 'User';
-    const pwdInput = window.prompt('管理员口令（留空=仅顾客；默认 admin）', '');
-    if (pwdInput === null) return;
-    const configured = import.meta.env.VITE_LOCAL_ADMIN_PASSWORD;
-    const expected =
-      configured === undefined || configured === null || String(configured).length === 0
-        ? 'admin'
-        : String(configured);
-    const isAdmin = pwdInput === expected;
+  const commitSession = useCallback((email: string, displayName: string, adminPassword: string) => {
+    const expected = getExpectedAdminPassword();
+    const isAdmin = adminPassword === expected;
     const session: LocalSession = {
       uid: stableUidFromEmail(email),
       email,
@@ -88,6 +98,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(sessionToProfile(session));
   }, []);
 
+  const loginWithCredentials = useCallback(
+    async (params: LoginWithCredentialsParams): Promise<LoginWithCredentialsResult> => {
+      const email = (params.email || '').trim() || 'demo@local.test';
+      const displayName =
+        (params.displayName?.trim() || email.split('@')[0] || 'User').trim() || 'User';
+      const pwd = params.adminPassword ?? '';
+      const expected = getExpectedAdminPassword();
+      const matches = pwd === expected;
+
+      if (params.requireMatchingAdminPassword && !matches) {
+        return {
+          ok: false,
+          error:
+            '管理员口令不正确。未在项目 .env 设置 VITE_LOCAL_ADMIN_PASSWORD 时，请使用默认口令 admin；若已设置，请与之一致。',
+        };
+      }
+
+      commitSession(email, displayName, pwd);
+      return { ok: true };
+    },
+    [commitSession]
+  );
+
+  const login = useCallback(async () => {
+    const emailInput = window.prompt('登录邮箱（数据保存在本机浏览器）', 'demo@local.test');
+    if (emailInput === null) return;
+    const email = emailInput.trim() || 'demo@local.test';
+    const nameInput = window.prompt('显示名称（可留空则用邮箱前缀）', email.split('@')[0] || 'User');
+    if (nameInput === null) return;
+    const displayName = nameInput.trim() || email.split('@')[0] || 'User';
+    const pwdInput = window.prompt('管理员口令（留空=仅顾客；默认 admin）', '');
+    if (pwdInput === null) return;
+    commitSession(email, displayName, pwdInput);
+  }, [commitSession]);
+
   const logout = useCallback(async () => {
     clearLocalSession();
     setUser(null);
@@ -95,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, loginWithCredentials, logout }}>
       {children}
     </AuthContext.Provider>
   );
