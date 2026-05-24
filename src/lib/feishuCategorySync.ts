@@ -33,10 +33,10 @@ export function categoryNeedsFeishuSync(cat: Category, nowMs = Date.now()): bool
 }
 
 export function formatFeishuLastSync(cat: Category): string {
-  if (!cat.feishuLastSyncedAt) return 'Never synced';
+  if (!cat.feishuLastSyncedAt) return '从未同步';
   const d = new Date(cat.feishuLastSyncedAt);
-  if (Number.isNaN(d.getTime())) return 'Never synced';
+  if (Number.isNaN(d.getTime())) return '从未同步';
   const count =
-    typeof cat.feishuLastSyncCount === 'number' ? ` · ${cat.feishuLastSyncCount} items` : '';
-  return `${d.toLocaleString('en-US')}${count}`;
+    typeof cat.feishuLastSyncCount === 'number' ? ` · ${cat.feishuLastSyncCount} 条商品` : '';
+  return `${d.toLocaleString('zh-CN')}${count}`;
 }

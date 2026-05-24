@@ -14,7 +14,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getLocalProducts, LOCAL_STORAGE_DB_KEY, localApplyFeishuCategorySync } from '../src/lib/localDb';
+import {
+  getLocalProducts,
+  LOCAL_STORAGE_DB_KEY,
+  localApplyFeishuCategorySync,
+  localUpdateCategory,
+  replaceLocalDbFromSnapshotJson,
+  load,
+} from '../src/lib/localDb';
 import { fetchProductsFromFeishuBitableUrl } from './lib/feishuFetchProducts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +52,26 @@ const defaultUrl =
   'https://ecnwellv8vhf.feishu.cn/base/MoFsbKDb9afweksIGUXcRG2inHe?table=tbloSN5lLDGcsxGG&view=vew9XNieRe';
 const inputUrl = argvRest[0] || defaultUrl;
 
+function loadExistingSnapshotIfPresent(): void {
+  const snapshotPath = path.join(__dirname, '..', 'public', 'feishu-bitable-db-v1.json');
+  if (!fs.existsSync(snapshotPath)) return;
+  const json = fs.readFileSync(snapshotPath, 'utf8');
+  if (!json.trim()) return;
+  replaceLocalDbFromSnapshotJson(json);
+  console.log('已加载现有快照，商品数:', getLocalProducts().length);
+}
+
+function patchCategoryFeishuMeta(categorySlug: string, url: string, added: number): void {
+  const cat = load().categories.find((c) => c.slug === categorySlug);
+  if (!cat) return;
+  localUpdateCategory(cat.id, {
+    feishuBitableUrl: url,
+    feishuLastSyncedAt: new Date().toISOString(),
+    feishuLastSyncCount: added,
+    feishuLastSyncMessage: `OK: ${added} products`,
+  });
+}
+
 async function main(): Promise<void> {
   console.log('飞书多维表 → Homaire 同步');
   console.log('链接:', inputUrl);
@@ -65,8 +92,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  loadExistingSnapshotIfPresent();
+
   const before = getLocalProducts().length;
   const { removed, added } = localApplyFeishuCategorySync(categorySlug, result.products);
+  patchCategoryFeishuMeta(categorySlug, inputUrl, added);
   const after = getLocalProducts().length;
   console.log(
     '完成。分类',

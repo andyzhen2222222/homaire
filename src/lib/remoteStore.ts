@@ -58,7 +58,13 @@ function applyCatalogToLocal(catalog: CatalogResponse['catalog']): void {
 export async function pullCatalogFromServer(): Promise<number> {
   const data = await fetchCatalog();
   if (!data?.ok) return getLocalProducts().length;
-  if (data.revision > catalogRevision || getLocalProducts().length === 0) {
+  const localCount = getLocalProducts().length;
+  const serverCount = data.catalog.products?.length ?? 0;
+  const shouldApply =
+    data.revision > catalogRevision ||
+    localCount === 0 ||
+    (serverCount > localCount && serverCount > 0);
+  if (shouldApply) {
     catalogRevision = data.revision;
     applyCatalogToLocal(data.catalog);
   }

@@ -46,6 +46,14 @@ function fetchAllRecords(
   viewId: string | undefined,
   as: 'user' | 'bot'
 ): Array<{ fields: Record<string, unknown>; recordId?: string }> {
+  /** 带 view 时 lark-cli 常只返回视图内可见列，标题/售价列会缺失 → 默认整表同步 */
+  const useView = process.env.FEISHU_SYNC_USE_VIEW === '1' && Boolean(viewId?.trim());
+  if (viewId?.trim() && !useView) {
+    console.warn(
+      `[feishu] 忽略 view=${viewId}，整表拉取全部列（避免视图隐藏「标题-法语/法国平台售价」等字段）。` +
+        ' 若需按视图筛行可设 FEISHU_SYNC_USE_VIEW=1'
+    );
+  }
   const rows: Array<{ fields: Record<string, unknown>; recordId?: string }> = [];
   let offset = 0;
   const limit = 200;
@@ -64,7 +72,7 @@ function fetchAllRecords(
       '--offset',
       String(offset),
     ];
-    if (viewId) args.push('--view-id', viewId);
+    if (useView) args.push('--view-id', viewId!);
     const res = runLarkCli(args, { as });
     const data = assertLarkOk(res, `读取记录失败 (offset ${offset})`);
     const chunk = extractRecordsFromLarkPayload(data);

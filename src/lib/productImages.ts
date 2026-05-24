@@ -1,10 +1,11 @@
 import type { Product } from '../types';
-import { IMPORT_FALLBACK_IMAGE } from './productImport';
 
 /** 列表/栅格主图比例：1:1，与详情轮播区分 */
 export const PRODUCT_LIST_IMAGE_ASPECT_CLASS = 'aspect-square';
 
-export const PRODUCT_LIST_IMAGE_PLACEHOLDER = IMPORT_FALLBACK_IMAGE;
+/** 与 productImport.IMPORT_FALLBACK_IMAGE 保持一致，避免循环依赖 */
+export const PRODUCT_LIST_IMAGE_PLACEHOLDER =
+  'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800';
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp|avif)(\?|$)/i;
 
@@ -28,7 +29,7 @@ function isUsableProductPhotoUrl(url: string): boolean {
   return IMAGE_EXT.test(u) || u.includes('/open/') || u.includes('oss') || u.includes('ribuluo');
 }
 
-/** 飞书/大健：优先 图片1–8，再 原图片1–8；跳过 logo */
+/** 飞书/大健：优先 主图 → 原图片1–8（GIGA 白底主图）→ 图片1–8（平台处理后图）→ logo 兜底 */
 export function collectProductImageUrlsFromRow(item: Record<string, unknown>): string[] {
   const urls: string[] = [];
   const seen = new Set<string>();
@@ -39,9 +40,11 @@ export function collectProductImageUrlsFromRow(item: Record<string, unknown>): s
     seen.add(u);
     urls.push(u);
   };
-  for (let i = 1; i <= 8; i += 1) push(item[`图片${i}`]);
+  for (const key of ['主图', '主图1', '封面图', 'Main Image', 'mainImage', 'coverImage']) {
+    push(item[key]);
+  }
   for (let i = 1; i <= 8; i += 1) push(item[`原图片${i}`]);
-  // logo 仅作最后兜底
+  for (let i = 1; i <= 8; i += 1) push(item[`图片${i}`]);
   push(item['logo图1']);
   return urls;
 }

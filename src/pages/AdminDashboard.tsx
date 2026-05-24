@@ -22,6 +22,7 @@ import {
   CategoryFeishuFormFields,
 } from '../components/admin/CategoryFeishuSync';
 import { NavDepartmentsEditor } from '../components/admin/NavDepartmentsEditor';
+import { CategoryCoverEditor } from '../components/admin/CategoryCoverEditor';
 import { CategoryTreePanel } from '../components/admin/CategoryTreePanel';
 import { useFeishuAutoSync } from '../hooks/useFeishuAutoSync';
 import {
@@ -111,7 +112,7 @@ export default function AdminDashboard() {
   const runCategoryFeishuSync = (cat: Category) => {
     const url = (cat.feishuBitableUrl || '').trim();
     if (!url) {
-      window.alert('Edit this category and add a Feishu Bitable URL first.');
+      window.alert('请先编辑该分类并填写飞书多维表格 URL。');
       return;
     }
     setFeishuRowSyncId(cat.id);
@@ -126,15 +127,15 @@ export default function AdminDashboard() {
         await updateCategory(cat.id, {
           feishuLastSyncedAt: new Date().toISOString(),
           feishuLastSyncCount: added,
-          feishuLastSyncMessage: `OK: ${rawRowCount} rows, ${added} products (${removed} removed)`,
+          feishuLastSyncMessage: `成功：${rawRowCount} 行，${added} 条商品（移除 ${removed} 条）`,
         });
-        window.alert(`「${cat.name}」synced: ${added} products`);
+        window.alert(`「${cat.name}」同步完成：${added} 条商品`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         await updateCategory(cat.id, {
           feishuLastSyncedAt: new Date().toISOString(),
           feishuLastSyncCount: 0,
-          feishuLastSyncMessage: `Failed: ${msg}`,
+          feishuLastSyncMessage: `失败：${msg}`,
         });
         window.alert(msg);
       } finally {
@@ -166,7 +167,7 @@ export default function AdminDashboard() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f0f2f5] text-[#606266]">
-        <p className="text-sm font-medium">Loading session…</p>
+        <p className="text-sm font-medium">正在加载会话…</p>
       </div>
     );
   }
@@ -196,13 +197,15 @@ export default function AdminDashboard() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#f0f2f5] px-6 py-16">
         <div className="max-w-md text-center">
-          <h1 className="mb-2 text-xl font-medium text-[#303133]">Admin sign in</h1>
+          <h1 className="mb-2 text-xl font-medium text-[#303133]">管理员登录</h1>
           <p className="text-sm text-[#909399]">
-            Local mode: data is stored in this browser. Default password{' '}
+            本地模式：数据保存在本浏览器。默认密码{' '}
             <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>
-            ; override with{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">VITE_LOCAL_ADMIN_PASSWORD</code> in{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">.env</code>.
+            ；可在{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">.env</code>{' '}
+            中通过{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">VITE_LOCAL_ADMIN_PASSWORD</code>{' '}
+            覆盖。
           </p>
         </div>
 
@@ -212,7 +215,7 @@ export default function AdminDashboard() {
         >
           <div>
             <label htmlFor="admin-login-email" className={ADMIN_FORM_LABEL}>
-              Email
+              邮箱
             </label>
             <input
               id="admin-login-email"
@@ -226,7 +229,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <label htmlFor="admin-login-name" className={ADMIN_FORM_LABEL}>
-              Display name (optional)
+              显示名称（可选）
             </label>
             <input
               id="admin-login-name"
@@ -240,7 +243,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <label htmlFor="admin-login-password" className={ADMIN_FORM_LABEL}>
-              Admin password
+              管理员密码
             </label>
             <input
               id="admin-login-password"
@@ -262,12 +265,12 @@ export default function AdminDashboard() {
             disabled={adminLoginSubmitting}
             className={`${ADMIN_BTN_PRIMARY} w-full`}
           >
-            {adminLoginSubmitting ? 'Signing in…' : 'Sign in'}
+            {adminLoginSubmitting ? '登录中…' : '登录'}
           </button>
         </form>
 
         <Link to="/" className="text-sm text-[#909399] hover:text-[#409eff]">
-          Back to store
+          返回店铺
         </Link>
       </div>
     );
@@ -277,10 +280,10 @@ export default function AdminDashboard() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#f0f2f5] px-6 text-center">
         <div>
-          <h1 className="mb-2 text-xl font-medium text-[#303133]">Access denied</h1>
+          <h1 className="mb-2 text-xl font-medium text-[#303133]">无权访问</h1>
           <p className="max-w-md text-sm text-[#909399]">
-            Account <span className="font-medium text-[#606266]">{user.email}</span> is not an admin session. Sign out, return here, and enter the correct admin password (default{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>).
+            账号 <span className="font-medium text-[#606266]">{user.email}</span> 不是管理员会话。请退出后重新进入，并输入正确的管理员密码（默认{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>）。
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -289,10 +292,10 @@ export default function AdminDashboard() {
             onClick={() => void logout()}
             className={`${ADMIN_BTN_DEFAULT} text-sm`}
           >
-            Sign out
+            退出登录
           </button>
           <Link to="/" className="text-sm text-[#409eff] hover:underline">
-            Back to store
+            返回店铺
           </Link>
         </div>
       </div>
@@ -303,19 +306,19 @@ export default function AdminDashboard() {
     'products' | 'categories' | 'orders' | 'promotions' | 'homeDecor' | 'settings',
     { title: string; subtitle: string }
   > = {
-    products: { title: 'Products', subtitle: 'Inventory · import / create · sorted by updated time' },
-    categories: { title: 'Categories', subtitle: 'Nav departments · 3-level tree · server catalog' },
-    orders: { title: 'Orders', subtitle: 'Search, details, shipping · local data' },
-    promotions: { title: 'Promotions', subtitle: 'Campaign cards · active state' },
-    homeDecor: { title: 'Homepage', subtitle: 'Home sections and category tiles' },
-    settings: { title: 'Site settings', subtitle: 'Store name, stock thresholds, category heroes' },
+    products: { title: '商品', subtitle: '库存 · 导入/新建 · 按更新时间排序' },
+    categories: { title: '分类', subtitle: '导航部门 · 三级分类树 · 服务端 catalog' },
+    orders: { title: '订单', subtitle: '搜索、详情、发货 · 本地数据' },
+    promotions: { title: '营销活动', subtitle: '活动卡片 · 启用状态' },
+    homeDecor: { title: '首页', subtitle: '首页区块与分类磁贴' },
+    settings: { title: '站点设置', subtitle: '店名、库存阈值、分类 Hero' },
   };
 
   const stats = [
-    { label: 'Revenue', value: formatEurPrice(totalRevenue), icon: <TrendingUp className="w-4 h-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Active Orders', value: activeOrdersCount.toString(), icon: <ShoppingBag className="w-4 h-4" />, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Inventory', value: products.length.toString(), icon: <Package className="w-4 h-4" />, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Customers', value: '1.2k', icon: <Users className="w-4 h-4" />, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: '营收', value: formatEurPrice(totalRevenue), icon: <TrendingUp className="w-4 h-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: '进行中订单', value: activeOrdersCount.toString(), icon: <ShoppingBag className="w-4 h-4" />, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: '库存商品', value: products.length.toString(), icon: <Package className="w-4 h-4" />, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: '顾客', value: '1.2k', icon: <Users className="w-4 h-4" />, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   return (
@@ -324,18 +327,18 @@ export default function AdminDashboard() {
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-4">
           <Link to="/" className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-sm font-semibold tracking-tight text-white">HOMAIRE</span>
-            <span className="text-[10px] text-slate-400">Admin</span>
+            <span className="text-[10px] text-slate-400">管理后台</span>
           </Link>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {[
-            { id: 'products' as const, label: 'Products', sub: 'Inventory', icon: <Package className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'categories' as const, label: 'Categories', sub: 'Taxonomy', icon: <Layers className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'orders' as const, label: 'Orders', sub: 'Orders', icon: <ShoppingBag className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'promotions' as const, label: 'Promotions', sub: 'Promo', icon: <Tag className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'homeDecor' as const, label: 'Homepage', sub: 'Home', icon: <LayoutTemplate className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'settings' as const, label: 'Settings', sub: 'Site', icon: <Settings className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'products' as const, label: '商品', sub: '库存', icon: <Package className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'categories' as const, label: '分类', sub: '分类树', icon: <Layers className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'orders' as const, label: '订单', sub: '订单', icon: <ShoppingBag className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'promotions' as const, label: '营销', sub: '活动', icon: <Tag className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'homeDecor' as const, label: '首页', sub: '装修', icon: <LayoutTemplate className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'settings' as const, label: '设置', sub: '站点', icon: <Settings className="h-4 w-4 shrink-0 opacity-80" /> },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -362,7 +365,7 @@ export default function AdminDashboard() {
               {(user?.displayName?.[0] || user?.email?.[0] || 'A').toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-white">{user?.displayName || 'Admin'}</p>
+              <p className="truncate text-xs font-medium text-white">{user?.displayName || '管理员'}</p>
               <p className="truncate text-[10px] text-slate-500">{user?.email}</p>
             </div>
           </div>
@@ -371,7 +374,7 @@ export default function AdminDashboard() {
             onClick={() => void logout()}
             className="mt-2 w-full rounded border border-white/10 px-2 py-1.5 text-center text-[11px] text-slate-400 transition-colors hover:border-white/20 hover:text-white"
           >
-            Sign out
+            退出登录
           </button>
         </div>
       </aside>
@@ -390,7 +393,7 @@ export default function AdminDashboard() {
                 className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-[#1677ff] hover:text-[#1677ff]"
               >
                 <Download className="h-3.5 w-3.5" />
-                Bulk import
+                批量导入
               </button>
             )}
             {(activeTab === 'products' || activeTab === 'promotions' || activeTab === 'categories') && (
@@ -407,14 +410,14 @@ export default function AdminDashboard() {
                 className="inline-flex items-center gap-1.5 rounded bg-[#1677ff] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#4096ff]"
               >
                 <Plus className="h-3.5 w-3.5" />
-                New
+                新建
               </button>
             )}
             <Link
               to="/"
               className="hidden text-xs text-slate-500 hover:text-[#1677ff] sm:inline"
             >
-              View storefront
+              查看前台
             </Link>
           </div>
         </header>
@@ -455,9 +458,9 @@ export default function AdminDashboard() {
                   <div className="overflow-x-auto">
                     <div className="mx-3 mt-3 mb-1 flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                       <span>
-                        <strong className="text-slate-900">{products.length}</strong> local products
+                        <strong className="text-slate-900">{products.length}</strong> 件本地商品
                         {products.length === 0
-                          ? ' · After sync:feishu, use Load snapshot on the right'
+                          ? ' · 执行 sync:feishu 后，可点击右侧「加载快照」'
                           : ''}
                       </span>
                       <div className="flex flex-wrap gap-2">
@@ -471,14 +474,14 @@ export default function AdminDashboard() {
                                   '../lib/localDb'
                                 );
                                 const n = await reloadFeishuSnapshotFromPublic();
-                                window.alert(`Loaded ${n} products from deploy snapshot`);
+                                window.alert(`已从部署快照加载 ${n} 条商品`);
                               } catch (e) {
                                 window.alert(e instanceof Error ? e.message : String(e));
                               }
                             })();
                           }}
                         >
-                          Load snapshot
+                          加载快照
                         </button>
                         <button
                           type="button"
@@ -487,14 +490,14 @@ export default function AdminDashboard() {
                             void import('../lib/remoteStore').then(async ({ pushCatalogToServer }) => {
                               try {
                                 const { revision } = await pushCatalogToServer();
-                                window.alert(`Pushed catalog to server (revision ${revision}). All visitors will see updates within ~15s.`);
+                                window.alert(`已推送到服务端 catalog（revision ${revision}）。访客约 15 秒内可见更新。`);
                               } catch (e) {
                                 window.alert(e instanceof Error ? e.message : String(e));
                               }
                             });
                           }}
                         >
-                          Push to server
+                          推送到服务端
                         </button>
                         <button
                           type="button"
@@ -505,21 +508,21 @@ export default function AdminDashboard() {
                             });
                           }}
                         >
-                          Export JSON
+                          导出 JSON
                         </button>
                       </div>
                     </div>
                     <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
-                      Sorted by updated time · newest imports and creates first
+                      按更新时间排序 · 最新导入与新建在前
                     </p>
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Product</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Category</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Stock</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Price</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Actions</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">商品</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">分类</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">库存</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">价格</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -540,8 +543,8 @@ export default function AdminDashboard() {
                             <td className="px-3 py-2 font-medium tabular-nums text-slate-900">{formatEurPriceCompact(product.price)}</td>
                             <td className="px-3 py-2 text-right">
                               <div className="flex justify-end gap-1">
-                                <button type="button" title="Edit" onClick={() => setEditingProduct(product)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Edit className="h-4 w-4" /></button>
-                                <button type="button" title="Delete" onClick={() => { if(confirm('Delete this product?')) deleteProduct(product.id); }} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                                <button type="button" title="编辑" onClick={() => setEditingProduct(product)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Edit className="h-4 w-4" /></button>
+                                <button type="button" title="删除" onClick={() => { if(confirm('确定删除此商品？')) deleteProduct(product.id); }} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                               </div>
                             </td>
                           </tr>
@@ -553,6 +556,10 @@ export default function AdminDashboard() {
 
                 {activeTab === 'categories' && (
                   <div>
+                    <CategoryCoverEditor
+                      categories={categories}
+                      onUpdateCategory={updateCategory}
+                    />
                     <NavDepartmentsEditor
                       categories={categories}
                       config={config}
@@ -566,7 +573,7 @@ export default function AdminDashboard() {
                       onUpdateCategory={updateCategory}
                     />
                     <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 mb-3">
-                      Up to 3 levels. Product category slugs match leaf nodes; parent category pages include all descendants.
+                      最多三级。商品 category slug 对应叶子节点；父级分类页包含所有子分类商品。
                     </p>
                     <CategoryTreePanel
                       categories={categories}
@@ -995,9 +1002,10 @@ function ImportModal({
                 <code className="mx-0.5 rounded bg-white px-1 py-0.5 text-[#606266]">stock</code>
               </p>
               <p className="text-xs leading-relaxed text-[#909399]">
-                可选：shortTitle（店铺主标题，≤{PRODUCT_IMPORT_SHORT_TITLE_MAX} 字）、description、images、features、subCategory、videoUrl、manualUrl、onSale、discountPrice、detailHtml 等。大健云仓导出含「产品型号」列时会自动映射。
+                可选：shortTitle、description、images、features、subCategory、videoUrl、manualUrl、onSale、discountPrice、detailHtml 等。
+                大健 / GIGA 飞书表请按「分类 → 飞书字段映射与使用说明」中的固定列名；CSV 手动导入可使用下列标准列名。
                 <span className="mt-1 block text-[#606266]">
-                  category 留空或无法识别时，会根据名称/描述/子类/卖点自动归入后台已有分类（与标准 8 类关键词规则）；仍可在列中显式填写 slug 或中文类名（如「沙发」「床」）。
+                  category 留空时根据名称/描述/子类/卖点自动归入已有分类；也可显式填写 slug（如 tables、sofas）。
                 </span>
               </p>
               <div className="mt-3 flex flex-wrap gap-2">

@@ -13,7 +13,7 @@ export const STORE_SHORT_TITLE_MAX_CHARS = 72;
 const AI_TIMEOUT_MS = 14_000;
 
 /** 去掉连续重复词（不区分大小写），常见于 ERP 标题 */
-function dedupeConsecutiveWords(s: string): string {
+export function dedupeConsecutiveWords(s: string): string {
   const parts = s.trim().split(/\s+/).filter(Boolean);
   if (parts.length < 2) return s.trim();
   const out: string[] = [];
@@ -63,12 +63,92 @@ export function abbreviateStoreTitle(raw: string, max = STORE_SHORT_TITLE_MAX_CH
   return `${slice.trimEnd()}…`;
 }
 
-/** 列表 / 卡片 / 购物车 / 订单行：优先 `shortTitle`，否则对 `name` 做 {@link abbreviateStoreTitle} */
-export function displayStoreProductTitle(
-  product: Pick<Product, 'name'> & Partial<Pick<Product, 'shortTitle'>>,
+/** 是否像 ERP / 飞书 SKU、产品型号（非可读标题） */
+export function isSkuLikeProductCode(s: string): boolean {
+  const t = (s ?? '').trim();
+  if (!t || t.length > 40) return false;
+  if (/\s/.test(t)) return false;
+  if (/^T\d+[A-Z0-9]+$/i.test(t)) return true;
+  if (/^[A-Z]{1,3}\d+[A-Z0-9_-]*$/i.test(t) && t.length <= 24) return true;
+  return /^[A-Z0-9_-]{5,22}$/i.test(t) && !/[aeiou]{2,}/i.test(t);
+}
+
+/** 从长描述 / 详情 HTML 提取首句作标题 */
+export function titleLeadFromLongText(text: string, maxLen = STORE_SHORT_TITLE_MAX_CHARS): string {
+  const plain = (text ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!plain) return '';
+  const sent = plain.match(/^[\s\S]{12,240}?[.!?](?:\s|$)/);
+  const block = sent ? sent[0].trim() : plain;
+  if (block.length <= maxLen) return block;
+  const cut = block.slice(0, maxLen);
+  const sp = cut.lastIndexOf(' ');
+  return `${(sp > Math.floor(maxLen * 0.4) ? cut.slice(0, sp) : cut).trimEnd()}…`;
+}
+
+/** 前台展示用主标题：短标题 → 可读 name → 描述/详情首句 → 卖点 → 回退 name */
+export function resolveStoreProductDisplayTitle(
+  product: Pick<Product, 'name'> &
+    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features'>>,
   maxChars = STORE_SHORT_TITLE_MAX_CHARS,
 ): string {
-  return abbreviateStoreTitle((product.shortTitle || product.name).trim(), maxChars);
+  const name = (product.name || '').trim();
+  const short = (product.shortTitle || '').trim();
+
+  if (short && !isSkuLikeProductCode(short)) return abbreviateStoreTitle(short, maxChars);
+  if (name && !isSkuLikeProductCode(name)) return abbreviateStoreTitle(name, maxChars);
+
+  const desc = (product.description || '').trim();
+  if (desc && !isSkuLikeProductCode(desc)) {
+    const lead = titleLeadFromLongText(desc, maxChars);
+    if (lead) return abbreviateStoreTitle(lead, maxChars);
+  }
+
+  const detail = (product.detailHtml || '').trim();
+  if (detail) {
+    const lead = titleLeadFromLongText(detail, maxChars);
+    if (lead && !isSkuLikeProductCode(lead)) return abbreviateStoreTitle(lead, maxChars);
+  }
+
+  const feat = product.features?.map((f) => String(f).trim()).find(Boolean);
+  if (feat) return abbreviateStoreTitle(feat, maxChars);
+
+  return abbreviateStoreTitle(name || 'Product', maxChars);
+}
+
+/** 列表 / 卡片标题：不用长描述 detailHtml，避免栅格出现整段 Product Story 首句 */
+export function displayStoreProductListTitle(
+  product: Pick<Product, 'name'> &
+    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features'>>,
+  maxChars = STORE_SHORT_TITLE_MAX_CHARS,
+): string {
+  const name = (product.name || '').trim();
+  const short = (product.shortTitle || '').trim();
+
+  if (short && !isSkuLikeProductCode(short)) return abbreviateStoreTitle(short, maxChars);
+  if (name && !isSkuLikeProductCode(name)) return abbreviateStoreTitle(name, maxChars);
+
+  const desc = (product.description || '').trim();
+  if (desc && !isSkuLikeProductCode(desc)) {
+    const lead = titleLeadFromLongText(desc, maxChars);
+    if (lead) return abbreviateStoreTitle(lead, maxChars);
+  }
+
+  const feat = product.features?.map((f) => String(f).trim()).find(Boolean);
+  if (feat) return abbreviateStoreTitle(feat, maxChars);
+
+  return abbreviateStoreTitle(name || 'Product', maxChars);
+}
+
+/** 详情 H1 / 购物车等：允许从 detailHtml 推断标题 */
+export function displayStoreProductTitle(
+  product: Pick<Product, 'name'> &
+    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features'>>,
+  maxChars = STORE_SHORT_TITLE_MAX_CHARS,
+): string {
+  return resolveStoreProductDisplayTitle(product, maxChars);
 }
 
 /**

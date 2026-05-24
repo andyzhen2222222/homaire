@@ -3,13 +3,13 @@ import {
   inferProductCategorySlug,
   tryResolveImportCategoryColumn,
 } from './inferProductCategorySlug';
-import { abbreviateStoreTitle, STORE_SHORT_TITLE_MAX_CHARS } from './storeShortTitle';
-import { collectProductImageUrlsFromRow, normalizeProductImageList } from './productImages';
+import { abbreviateStoreTitle, isSkuLikeProductCode, STORE_SHORT_TITLE_MAX_CHARS, titleLeadFromLongText } from './storeShortTitle';
+import { collectProductImageUrlsFromRow, normalizeProductImageList, PRODUCT_LIST_IMAGE_PLACEHOLDER } from './productImages';
+import { readImportCell, normalizeFeishuImportRow } from './feishuBitableSync';
 import { normalizeProductPrices, roundStorePrice } from './storePrice';
 
 /** 批量导入未提供图片时的占位图，避免列表/详情报错 */
-export const IMPORT_FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800';
+export const IMPORT_FALLBACK_IMAGE = PRODUCT_LIST_IMAGE_PLACEHOLDER;
 
 /**
  * 详情侧栏约 min(100vw, 1280px) 内 ~360–496px 列宽，标题为 text-4xl ~ text-6xl（约 2.25rem–3.75rem）：
@@ -132,18 +132,19 @@ export function normalizeParsedTableRow(row: unknown): Record<string, unknown> {
   return out;
 }
 
-/** 大健云仓 / GIGA 导出：存在「产品型号」列即按此表映射 */
+/** 大健云仓 / GIGA 导出：含 SKU 或产品型号，且非纯标题行 */
 export function isDjianCloudSourceRow(item: unknown): item is Record<string, unknown> {
-  if (item != null && typeof item === 'object') {
-    const row = item as Record<string, unknown>;
-    if (String(row['标题-英语'] ?? row['标题-法语'] ?? '').trim()) return false;
+  if (item == null || typeof item !== 'object') return false;
+  const row = item as Record<string, unknown>;
+  if (readImportCell(row, '标题-英语') || readImportCell(row, '标题-法语')) return false;
+  if (
+    readImportCell(row, '产品标题-英语') ||
+    readImportCell(row, '产品标题-法语') ||
+    readImportCell(row, '产品简称-法语')
+  ) {
+    return false;
   }
-  return (
-    item != null &&
-    typeof item === 'object' &&
-    typeof (item as Record<string, unknown>)['产品型号'] === 'string' &&
-    String((item as Record<string, unknown>)['产品型号']).trim().length > 0
-  );
+  return readImportCell(row, '产品型号').length > 0 || readImportCell(row, 'SKU').length > 0;
 }
 
 function firstFiniteNumber(...vals: unknown[]): number {
@@ -240,11 +241,207 @@ function clampProductForLocalDb(p: Omit<Product, 'id' | 'createdAt'>): Omit<Prod
 
 function pickFirstCellString(item: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
-    const v = item[k];
-    const s = typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : '';
+    const s = readImportCell(item, k);
     if (s) return s;
   }
   return '';
+}
+
+/** 飞书 GIGA 表：简短描述 1–8（优先英文 → 法语 → 中文） */
+export function collectGigaShortDescriptionLines(item: Record<string, unknown>): string[] {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  const pushKey = (key: string) => {
+    const s = readImportCell(item, key);
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    lines.push(s);
+  };
+  for (let i = 1; i <= 8; i += 1) {
+    pushKey(`简短描述${i}-英文`);
+  }
+  for (let i = 1; i <= 8; i += 1) {
+    pushKey(`简短描述${i}-法语`);
+  }
+  for (let i = 1; i <= 8; i += 1) {
+    pushKey(`简短描述${i}`);
+  }
+  pushKey('五点描述-综合');
+  pushKey('五点卖点');
+  return lines;
+}
+
+/** 侧栏卖点：简短描述 3+（1–2 条通常作摘要） */
+export function collectImportFeaturesFromRow(item: Record<string, unknown>): string[] {
+  const lines = collectGigaShortDescriptionLines(item);
+  if (lines.length >= 3) return lines.slice(2, 10);
+  if (lines.length === 2) return [lines[1]];
+
+  let features: string[] = [];
+  if (typeof item.features === 'string') {
+    features = splitImportedFeaturesString(item.features);
+  } else if (Array.isArray(item.features)) {
+    features = item.features.map(String).filter(Boolean);
+  }
+  return features.slice(0, 8);
+}
+
+/** 首段描述：简短描述 1–2 */
+export function collectImportDescriptionFromRow(item: Record<string, unknown>): string {
+  const lines = collectGigaShortDescriptionLines(item);
+  if (lines.length >= 2) return lines.slice(0, 2).join(' ').trim();
+  if (lines.length === 1) return lines[0];
+  return String(item.description ?? item.Description ?? '').trim();
+}
+
+export function resolveImportedProductName(item: Record<string, unknown>): string {
+  const frenchTitle = pickFirstCellString(item, [
+    '标题-法语',
+    '产品标题-法语',
+    '产品简称-法语',
+  ]);
+  if (frenchTitle && !isSkuLikeProductCode(frenchTitle)) {
+    return frenchTitle.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  const titleFirst = pickFirstCellString(item, [
+    '产品标题-英语',
+    '产品简称',
+    '标题-英语',
+    '标题',
+    'name',
+    'Name',
+    '商品名',
+    '英文标题',
+    '店铺标题',
+    '短标题',
+    'shortTitle',
+    'ShortTitle',
+  ]);
+  if (titleFirst && !isSkuLikeProductCode(titleFirst)) {
+    return titleFirst.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  const erpTitle = pickFirstCellString(item, ['产品型号']);
+  if (erpTitle && !isSkuLikeProductCode(erpTitle)) {
+    return erpTitle.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  const model = pickFirstCellString(item, ['SKU', 'SKU-RBL', 'sku']);
+  if (model && !isSkuLikeProductCode(model)) {
+    return model.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  const shortLines = collectGigaShortDescriptionLines(item).filter(
+    (line) => line.length >= 16 && !isSkuLikeProductCode(line)
+  );
+  for (const line of shortLines.slice(0, 3)) {
+    return line.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  const desc = String(item.description ?? item.Description ?? item['产品描述-法语'] ?? '').trim();
+  if (desc && !isSkuLikeProductCode(desc)) {
+    const lead = titleLeadFromLongText(desc, PRODUCT_IMPORT_NAME_MAX);
+    if (lead) return lead.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  const detail = resolveImportedDetailSourceText(item);
+  if (detail) {
+    const lead = titleLeadFromLongText(detail, PRODUCT_IMPORT_NAME_MAX);
+    if (lead && !isSkuLikeProductCode(lead)) return lead.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  if (titleFirst) return titleFirst.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  if (model) return model.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  return pickFirstCellString(item, ['name', 'Name']).slice(0, PRODUCT_IMPORT_NAME_MAX);
+}
+
+/** 前台售价：法国平台售价为主价；若有更低调价最低价则作促销价 */
+export function resolveImportedListingPricing(item: Record<string, unknown>): {
+  price: number;
+  discountPrice: number;
+  onSale: boolean;
+} {
+  const listRaw = firstFiniteNumber(
+    readImportCell(item, '法国平台售价'),
+    readImportCell(item, '售价'),
+    readImportCell(item, '价格')
+  );
+  const floorRaw = firstFiniteNumber(readImportCell(item, '法国平台调价最低价'));
+  let price = listRaw > 0 ? listRaw : firstFiniteNumber(readImportCell(item, '法国最新单价'));
+
+  price = roundStorePrice(price);
+  const floor = roundStorePrice(floorRaw);
+  if (price > 0 && floor > 0 && floor < price) {
+    return { price, discountPrice: floor, onSale: true };
+  }
+  return { price, discountPrice: 0, onSale: false };
+}
+
+/** @deprecated 使用 resolveImportedListingPricing */
+export function resolveImportedProductPrice(item: Record<string, unknown>): number {
+  return resolveImportedListingPricing(item).price;
+}
+
+export function resolveImportedStock(item: Record<string, unknown>): number {
+  return parseStockCell(
+    item['可售库存'] ?? item['线上库存'] ?? item['拉取库存'] ?? item.stock ?? item.Stock
+  );
+}
+
+export function resolveImportedSubCategory(item: Record<string, unknown>): string {
+  return pickFirstCellString(item, [
+    'subCategory',
+    'SubCategory',
+    '材质',
+    '材质-法语',
+    '沙发类型-中文',
+    '沙发类型',
+    '颜色-法语',
+    '颜色',
+  ]);
+}
+
+function resolveImportedDetailSourceText(item: Record<string, unknown>): string {
+  return pickFirstCellString(item, [
+    'detailHtml',
+    'DetailHtml',
+    '长描述',
+    '长描述-法语',
+    'html-法语',
+    '产品描述-法语',
+    'html',
+    'HTML',
+  ]);
+}
+
+export function resolveImportedDetailHtml(item: Record<string, unknown>): string {
+  const raw = resolveImportedDetailSourceText(item);
+  if (!raw) return '';
+  if (looksLikeHtmlFragment(raw)) {
+    return sanitizeMerchantDetailHtml(raw).slice(0, 28000);
+  }
+  return plainTextLongDescToDetailHtml(raw);
+}
+
+export function resolveImportedShortTitle(
+  item: Record<string, unknown>,
+  name: string
+): string | undefined {
+  const explicit = pickFirstCellString(item, [
+    'shortTitle',
+    'ShortTitle',
+    '短标题',
+    '店铺标题',
+    '产品简称-法语',
+    '产品简称',
+  ]).trim();
+  const source = (explicit || name).trim();
+  if (!source || isSkuLikeProductCode(source)) return undefined;
+  const abbr = abbreviateStoreTitle(source);
+  if (!abbr || abbr === name) return undefined;
+  if (name.length > 40 || abbr.length < name.length) return abbr;
+  return undefined;
 }
 
 /** 拼成一段文本供类目推断（不包含 category 列本身，避免错误列名干扰） */
@@ -323,70 +520,60 @@ function parseStockCell(v: unknown): number {
   return Math.max(0, Math.floor(firstFiniteNumber(v)));
 }
 
-/** 飞书多维表（标题-英语 / 法国平台售价 等列） */
+/** 飞书多维表（英/法标题列或法国平台售价） */
 export function isFeishuExportRow(item: unknown): item is Record<string, unknown> {
   if (item == null || typeof item !== 'object') return false;
   const row = item as Record<string, unknown>;
-  return String(row['标题-英语'] ?? row['标题-法语'] ?? '').trim().length > 0;
+  return (
+    Boolean(
+      readImportCell(row, '标题-英语') ||
+        readImportCell(row, '标题-法语') ||
+        readImportCell(row, '产品标题-英语') ||
+        readImportCell(row, '产品标题-法语') ||
+        readImportCell(row, '产品简称') ||
+        readImportCell(row, '产品简称-法语')
+    ) || resolveImportedListingPricing(row).price > 0
+  );
 }
 
 export function mapFeishuExportRowToImportShape(
   item: Record<string, unknown>,
   options?: ProductImportParseOptions
 ): Record<string, unknown> {
-  const name = String(
-    item['标题-英语'] ?? item['产品型号'] ?? item.SKU ?? item['SKU-RBL'] ?? ''
-  )
-    .trim()
-    .slice(0, PRODUCT_IMPORT_NAME_MAX);
-  const price = firstFiniteNumber(
-    item['法国平台售价'],
-    item['法国平台调价最低价'],
-    item['单价-人民币'],
-    item['德国最新单价']
-  );
-  const stock = parseStockCell(item['可售库存'] ?? item['线上库存']);
-
-  const shortEn = [1, 2, 3, 4, 5]
-    .map((i) => String(item[`简短描述${i}-英文`] ?? item[`简短描述${i}`] ?? '').trim())
-    .filter(Boolean);
+  const name = resolveImportedProductName(item);
+  const pricing = resolveImportedListingPricing(item);
+  const stock = resolveImportedStock(item);
+  const shortEn = collectGigaShortDescriptionLines(item);
   const description = shortEn.slice(0, 2).join(' ').trim() || name.slice(0, 280);
   const featuresJoined = shortEn.slice(2).join('\n');
-
-  const longDesc = String(item['长描述'] ?? '').trim();
-  const detailHtml = longDesc ? longDescToDetailHtmlSmart(longDesc) : '';
-
+  const detailHtml = resolveImportedDetailHtml(item);
   const urls = collectDjianImageUrls(item).slice(0, 6);
   const images = urls.join(',');
-
-  const manualRaw = String(item['说明书'] ?? '').trim();
+  const manualRaw = String(item['说明书'] ?? item['说明书压缩'] ?? '').trim();
   const manualMatch = manualRaw.match(/https?:\/\/[^\s)\]]+/);
   const manualUrl = manualMatch ? manualMatch[0] : manualRaw;
-
   const defaultCat = (options?.defaultCategory ?? 'sofas').trim().toLowerCase() || 'sofas';
   const category =
     options?.inferCategoryFromRowData === false
       ? defaultCat
       : (options?.defaultCategory ?? defaultCat);
-
-  const shortAbbr = abbreviateStoreTitle(name);
-  const shortTitle = shortAbbr && shortAbbr !== name ? shortAbbr : '';
+  const shortTitle = resolveImportedShortTitle(item, name) ?? '';
 
   return {
     name,
     shortTitle,
-    price,
+    price: pricing.price,
     category,
     stock,
     description,
     detailHtml,
     images,
     features: featuresJoined,
-    subCategory: String(item['材质'] ?? '').trim(),
+    subCategory: resolveImportedSubCategory(item),
     manualUrl,
     videoUrl: '',
-    onSale: false,
-    discountPrice: 0,
+    onSale: pricing.onSale,
+    discountPrice: pricing.discountPrice,
   };
 }
 
@@ -395,30 +582,19 @@ export function mapDjianCloudRowToImportShape(
   item: Record<string, unknown>,
   options?: ProductImportParseOptions
 ): Record<string, unknown> {
-  const name = String(item['产品型号'] ?? '')
-    .trim()
-    .slice(0, PRODUCT_IMPORT_NAME_MAX);
-  const price = firstFiniteNumber(item['德国最新单价'], item['法国最新单价'], item['单价-人民币']);
-  const stock = Math.max(0, Math.floor(firstFiniteNumber(item['可售库存'], item['拉取库存'])));
+  const name = resolveImportedProductName(item);
+  const pricing = resolveImportedListingPricing(item);
+  const stock = resolveImportedStock(item);
   const defaultCat = (options?.defaultCategory ?? 'sofas').trim().toLowerCase() || 'sofas';
-
-  const shortZh = [1, 2, 3, 4, 5]
-    .map((i) => String(item[`简短描述${i}`] ?? '').trim())
-    .filter(Boolean);
-  const description = shortZh.slice(0, 2).join(' ').trim() || name.slice(0, 280);
-  /** 简短描述1–2 已并入 description，卖点只保留 3–5，避免侧栏与首段重复 */
-  const featuresJoined = shortZh.slice(2).join('\n');
-
-  const longDesc = String(item['长描述'] ?? '').trim();
-  const detailHtml = longDesc ? longDescToDetailHtmlSmart(longDesc) : '';
-
+  const shortLines = collectGigaShortDescriptionLines(item);
+  const description = shortLines.slice(0, 2).join(' ').trim() || name.slice(0, 280);
+  const featuresJoined = shortLines.slice(2).join('\n');
+  const detailHtml = resolveImportedDetailHtml(item);
   const urls = collectDjianImageUrls(item).slice(0, 6);
   const images = urls.join(',');
-
-  const manualUrl = String(item['说明书'] ?? '').trim();
-  const subCategory = String(item['沙发类型-中文'] ?? item['沙发类型'] ?? '').trim();
-
-  const hayForCategory = [name, description, featuresJoined, subCategory, longDesc.slice(0, 4000)]
+  const manualUrl = String(item['说明书'] ?? item['说明书压缩'] ?? '').trim();
+  const subCategory = resolveImportedSubCategory(item);
+  const hayForCategory = [name, description, featuresJoined, subCategory, resolveImportedDetailSourceText(item).slice(0, 4000)]
     .filter(Boolean)
     .join('\n');
   const allow = options?.allowedCategorySlugs?.map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -429,18 +605,12 @@ export function mapDjianCloudRowToImportShape(
           allowedSlugs: allow?.length ? new Set(allow) : undefined,
           fallback: defaultCat,
         });
-
-  const explicitTitle = pickFirstCellString(item, ['店铺标题', '短标题', '英文标题']).trim();
-  let rawShort = explicitTitle;
-  if (!rawShort && shortZh[0]) rawShort = shortZh[0].trim();
-  if (!rawShort) rawShort = name.trim();
-  const shortAbbr = abbreviateStoreTitle(rawShort);
-  const shortTitle = shortAbbr && shortAbbr !== name.trim() ? shortAbbr : '';
+  const shortTitle = resolveImportedShortTitle(item, name) ?? '';
 
   return {
     name,
     shortTitle,
-    price,
+    price: pricing.price,
     category,
     stock,
     description,
@@ -450,8 +620,8 @@ export function mapDjianCloudRowToImportShape(
     subCategory,
     manualUrl,
     videoUrl: '',
-    onSale: false,
-    discountPrice: 0,
+    onSale: pricing.onSale,
+    discountPrice: pricing.discountPrice,
   };
 }
 
@@ -467,61 +637,70 @@ export function processImportedProductRows(
     .filter((row) => row != null && typeof row === 'object')
     .map((row) => normalizeParsedTableRow(row))
     .filter((row) => Object.keys(row).length > 0);
-  const mapped = rows.map((raw: any) => {
-    const item = isFeishuExportRow(raw)
-      ? { ...raw, ...mapFeishuExportRowToImportShape(raw, options) }
-      : isDjianCloudSourceRow(raw)
-        ? { ...raw, ...mapDjianCloudRowToImportShape(raw, options) }
-        : raw;
+  const mapped = rows.map((raw: Record<string, unknown>) => {
+    const normalized = normalizeFeishuImportRow(raw);
+    const shaped = isFeishuExportRow(normalized)
+      ? mapFeishuExportRowToImportShape(normalized, options)
+      : isDjianCloudSourceRow(normalized)
+        ? mapDjianCloudRowToImportShape(normalized, options)
+        : {};
+    const item: Record<string, unknown> = { ...normalized, ...shaped };
 
-    let images: string[] = [];
-    if (typeof item.images === 'string') {
-      images = item.images
-        .split(',')
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-    } else if (Array.isArray(item.images)) {
-      images = item.images.map(String).filter(Boolean);
+    let images: string[] = collectProductImageUrlsFromRow(item);
+    if (images.length === 0) {
+      if (typeof item.images === 'string') {
+        images = item.images
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+      } else if (Array.isArray(item.images)) {
+        images = item.images.map(String).filter(Boolean);
+      }
     }
+    images = normalizeProductImageList(images);
     if (images.length === 0) {
       images = [IMPORT_FALLBACK_IMAGE];
     }
 
-    let features: string[] = [];
-    if (typeof item.features === 'string') {
+    let features = collectImportFeaturesFromRow(item);
+    if (features.length === 0 && typeof item.features === 'string' && item.features.trim()) {
       features = splitImportedFeaturesString(item.features);
-    } else if (Array.isArray(item.features)) {
+    } else if (features.length === 0 && Array.isArray(item.features)) {
       features = item.features.map(String).filter(Boolean);
     }
 
     const category = resolveImportCategory(item, options);
 
-    const shortTitleRaw = String(
-      item.shortTitle ?? item.ShortTitle ?? item['短标题'] ?? item['店铺标题'] ?? ''
-    ).trim();
-    const nameTrimmed = String(item.name ?? item.Name ?? '')
-      .trim()
-      .slice(0, PRODUCT_IMPORT_NAME_MAX);
-    const sourceForShort = (shortTitleRaw || nameTrimmed).trim();
-    const shortTitleAbbr = abbreviateStoreTitle(sourceForShort);
-    const shortTitle =
-      shortTitleAbbr && shortTitleAbbr !== nameTrimmed ? shortTitleAbbr : undefined;
+    const nameTrimmed = resolveImportedProductName(item);
+    const shortTitle = resolveImportedShortTitle(item, nameTrimmed);
+
+    let description = String(item.description ?? item.Description ?? '').trim();
+    if (!description) {
+      description = collectImportDescriptionFromRow(item);
+    }
+    if (!description) {
+      const fromDetail = titleLeadFromLongText(resolveImportedDetailSourceText(item), 900);
+      if (fromDetail) description = fromDetail;
+    }
+
+    const detailHtml = resolveImportedDetailHtml(item);
+    const pricing = resolveImportedListingPricing(item);
 
     return {
       name: nameTrimmed,
       ...(shortTitle ? { shortTitle } : {}),
-      price: roundStorePrice(item.price ?? item.Price ?? 0),
+      price: pricing.price,
       category,
-      stock: Number(item.stock ?? item.Stock ?? 0),
-      description: String(item.description ?? item.Description ?? '').trim(),
-      detailHtml: String(item.detailHtml ?? item.DetailHtml ?? item.html ?? item.HTML ?? '').trim(),
+      stock: resolveImportedStock(item),
+      description,
+      detailHtml,
       images,
       features,
-      subCategory: String(item.subCategory ?? item.SubCategory ?? '').trim(),
+      subCategory: resolveImportedSubCategory(item),
       videoUrl: String(item.videoUrl ?? item.VideoUrl ?? item.video ?? item.Video ?? '').trim(),
       manualUrl: String(item.manualUrl ?? item.ManualUrl ?? item.manual ?? item.Manual ?? '').trim(),
-      onSale: parseImportedBool(item.onSale ?? item.OnSale ?? false),
-      discountPrice: roundStorePrice(item.discountPrice ?? item.DiscountPrice ?? 0),
+      onSale: pricing.onSale,
+      discountPrice: pricing.discountPrice,
     };
   });
 

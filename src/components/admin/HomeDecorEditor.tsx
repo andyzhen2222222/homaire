@@ -206,14 +206,14 @@ export function HomeDecorEditor({
   };
 
   if (configLoading) {
-    return <p className="py-8 text-sm text-[#909399]">Loading site config…</p>;
+    return <p className="py-8 text-sm text-[#909399]">正在加载站点配置…</p>;
   }
 
   return (
     <div className="space-y-5">
       <div className={`${ADM_CARD} flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between`}>
         <div className="min-w-0">
-          <h2 className="text-base font-medium text-[#303133]">Homepage editor</h2>
+          <h2 className="text-base font-medium text-[#303133]">首页编辑</h2>
           <p className="mt-1 max-w-xl text-xs leading-relaxed text-[#909399]">
             右侧表单修改会立即反映在预览中。首屏左侧轮播对应「营销活动」中的{' '}
             <span className="text-[#606266]">hero</span>；右侧竖条优先展示{' '}
@@ -223,11 +223,11 @@ export function HomeDecorEditor({
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => resetDraft()} className={`${ADM_BTN_DEFAULT} gap-1.5`}>
             <RotateCcw className="h-3.5 w-3.5" />
-            Restore saved
+            恢复已保存
           </button>
           <Link to="/" target="_blank" rel="noreferrer" className={`${ADM_BTN_DEFAULT} gap-1.5 no-underline`}>
             <ExternalLink className="h-3.5 w-3.5" />
-            Open storefront
+            打开前台
           </Link>
           <button
             type="button"
@@ -236,14 +236,14 @@ export function HomeDecorEditor({
             className={`${ADM_BTN_PRIMARY} gap-1.5`}
           >
             <Save className="h-3.5 w-3.5" />
-            {saving ? 'Saving…' : 'Save homepage'}
+            {saving ? '保存中…' : '保存首页'}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <div className="space-y-2">
-          <p className="text-xs text-[#909399]">Live preview</p>
+          <p className="text-xs text-[#909399]">实时预览</p>
           <div className={`${ADM_PREVIEW_FRAME} shadow-inner`}>
             <HomeSections
               products={products}
@@ -252,14 +252,14 @@ export function HomeDecorEditor({
               config={previewConfig}
               categories={categories}
               onAddToCart={(_p: Product) => {}}
-              previewBanner="Homepage preview (not published separately)"
+              previewBanner="首页预览（未单独发布）"
             />
           </div>
         </div>
 
         <div className="max-h-[min(85vh,920px)] space-y-4 overflow-y-auto pr-1">
           <section className={`${ADM_CARD} space-y-3`}>
-            <h3 className={ADM_CARD_TITLE}>Trust bar (4 items)</h3>
+            <h3 className={ADM_CARD_TITLE}>信任条（4 项）</h3>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className={`${ADM_SUBCARD} space-y-2`}>
                 <input
@@ -347,7 +347,7 @@ export function HomeDecorEditor({
           </section>
 
           <section className={`${ADM_CARD} space-y-3`}>
-            <h3 className={ADM_CARD_TITLE}>Category tiles (8)</h3>
+            <h3 className={ADM_CARD_TITLE}>分类磁贴（8 个）</h3>
             <p className="text-xs leading-relaxed text-[#909399]">
               内置默认图为 <span className="font-mono text-[#606266]">public/home-categories/*.png</span>。配图留空时依次：分类封面 → 关键词 → 内置图。主推顺序：本项 id →
               分类管理主推 → 商品勾选 → 自动补齐。
@@ -418,7 +418,7 @@ export function HomeDecorEditor({
           </section>
 
           <section className={`${ADM_CARD} space-y-3`}>
-            <h3 className={ADM_CARD_TITLE}>Shop & trending headings</h3>
+            <h3 className={ADM_CARD_TITLE}>选购区与精选区标题</h3>
             {(
               [
                 ['homeShopEyebrow', '选购区小标题'],
@@ -441,7 +441,7 @@ export function HomeDecorEditor({
           </section>
 
           <section className={`${ADM_CARD} space-y-3`}>
-            <h3 className={ADM_CARD_TITLE}>Customer reviews (4)</h3>
+            <h3 className={ADM_CARD_TITLE}>顾客评价（4 条）</h3>
             <p className="text-xs leading-relaxed text-[#909399]">
               展示买家口吻摘要（建议匿名化）。星级 1–5，留空则不显示星级。
             </p>

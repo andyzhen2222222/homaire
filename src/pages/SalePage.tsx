@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Tag, Zap, Percent, ArrowRight, Clock, ShoppingCart } from 'lucide-react';
 import { useMemo } from 'react';
 import { useCart } from '../components/CartContext';
-import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { displayStoreProductListTitle } from '../lib/storeShortTitle';
 import { ProductListImage } from '../components/ProductListImage';
 import { PRODUCT_LIST_IMAGE_ASPECT_CLASS } from '../lib/productImages';
 import { formatEurPrice } from '../lib/storePrice';
@@ -73,7 +73,7 @@ export default function SalePage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-10 gap-y-20">
           {saleProducts.map((product, i) => {
-            const listTitle = displayStoreProductTitle(product, SALE_GRID_TITLE_MAX);
+            const listTitle = displayStoreProductListTitle(product, SALE_GRID_TITLE_MAX);
             return (
             <motion.div
               key={product.id}

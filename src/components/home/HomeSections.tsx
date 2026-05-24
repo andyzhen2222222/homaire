@@ -3,7 +3,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-reac
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import type { Product, Promotion, StoreConfig, Category } from '../../types';
-import { displayStoreProductTitle } from '../../lib/storeShortTitle';
+import { displayStoreProductListTitle } from '../../lib/storeShortTitle';
 import { mergeTrustItems } from '../../lib/siteContent';
 import { HOME_CATEGORY_FLOOR_LIMIT, resolveHomeCategoryFloorProducts } from '../../lib/homeCategoryFloor';
 import {
@@ -73,7 +73,7 @@ function FloorProductCard({
   product: Product;
   onAddToCart: (p: Product) => void;
 }) {
-  const title = displayStoreProductTitle(product, HOME_FLOOR_PRODUCT_TITLE_MAX);
+  const title = displayStoreProductListTitle(product, HOME_FLOOR_PRODUCT_TITLE_MAX);
   const hasDeal =
     typeof product.discountPrice === 'number' &&
     product.discountPrice > 0 &&
@@ -721,7 +721,7 @@ export function HomeSections({
             ))
           ) : (
             featuredProducts.map((product, i) => {
-              const title = displayStoreProductTitle(product, HOME_FEATURED_PRODUCT_TITLE_MAX);
+              const title = displayStoreProductListTitle(product, HOME_FEATURED_PRODUCT_TITLE_MAX);
               return (
               <motion.div
                 key={product.id}

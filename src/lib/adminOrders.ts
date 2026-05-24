@@ -12,14 +12,14 @@ export interface OrderListQuery {
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
+  pending: '待处理',
+  processing: '处理中',
+  shipped: '已发货',
+  delivered: '已送达',
+  cancelled: '已取消',
 };
 
-export const SHIP_CARRIER_OPTIONS = ['DHL', 'FedEx', 'UPS', 'SF Express', 'ZTO', 'Other'] as const;
+export const SHIP_CARRIER_OPTIONS = ['DHL', 'FedEx', 'UPS', '顺丰速运', '中通快递', '其他'] as const;
 
 export function formatOrderId(id: string): string {
   return `#${id.slice(-8).toUpperCase()}`;
@@ -27,7 +27,7 @@ export function formatOrderId(id: string): string {
 
 export function formatOrderDate(createdAt?: { seconds?: number }): string {
   if (typeof createdAt?.seconds !== 'number') return '—';
-  return new Date(createdAt.seconds * 1000).toLocaleString('en-US', {
+  return new Date(createdAt.seconds * 1000).toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

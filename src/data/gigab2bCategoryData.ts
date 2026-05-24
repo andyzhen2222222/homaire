@@ -1689,24 +1689,24 @@ export const GIGAB2B_TREE: Gigab2bNode[] = [
 ];
 
 export const GIGAB2B_LEVEL1_IMAGES: Record<string, string> = {
-  "furniture": "/home-categories/homaire-cat-sofas.png",
-  "garden-outdoor": "/home-categories/homaire-cat-garden.png",
-  "fitness-sports": "/home-categories/homaire-cat-chairs.png",
-  "bath-faucets": "/home-categories/homaire-cat-decor.png",
-  "kitchen": "/home-categories/homaire-cat-tables.png",
-  "pet-supplies": "/home-categories/homaire-cat-decor.png",
-  "toys": "/home-categories/homaire-cat-decor.png",
-  "auto-parts-transport": "/home-categories/homaire-cat-storage.png",
-  "lighting": "/home-categories/homaire-cat-lighting.png",
-  "household-supplies-decor": "/home-categories/homaire-cat-decor.png",
-  "travel": "/home-categories/homaire-cat-storage.png",
-  "electrical-appliances": "/home-categories/homaire-cat-lighting.png",
-  "tools-tool-organizers": "/home-categories/homaire-cat-storage.png",
-  "home-improvement": "/home-categories/homaire-cat-storage.png",
-  "commercial": "/home-categories/homaire-cat-tables.png",
-  "industrial-scientific": "/home-categories/homaire-cat-beds.png",
-  "other": "/home-categories/homaire-cat-decor.png",
-  "part": "/home-categories/homaire-cat-storage.png"
+  "furniture": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
+  "garden-outdoor": "https://images.unsplash.com/photo-1517409197771-1520a09e8b91?auto=format&fit=crop&q=80&w=2000",
+  "fitness-sports": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&q=80&w=2000",
+  "bath-faucets": "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?auto=format&fit=crop&q=80&w=2000",
+  "kitchen": "https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&q=80&w=2000",
+  "pet-supplies": "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&q=80&w=2000",
+  "toys": "https://images.unsplash.com/photo-1515488042361-ee00e3ddd4d4?auto=format&fit=crop&q=80&w=2000",
+  "auto-parts-transport": "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&q=80&w=2000",
+  "lighting": "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=2000",
+  "household-supplies-decor": "https://images.unsplash.com/photo-1513519247388-4e284044efd3?auto=format&fit=crop&q=80&w=2000",
+  "travel": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&q=80&w=2000",
+  "electrical-appliances": "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=2000",
+  "tools-tool-organizers": "https://images.unsplash.com/photo-1581147036323-c1c5c7d2e672?auto=format&fit=crop&q=80&w=2000",
+  "home-improvement": "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=2000",
+  "commercial": "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&q=80&w=2000",
+  "industrial-scientific": "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=2000",
+  "other": "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=2000",
+  "part": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&q=80&w=2000"
 };
 
 export const GIGAB2B_HERO_IMAGES: Record<string, string> = {

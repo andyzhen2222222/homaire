@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
 import { useProduct, useProducts } from '../hooks/useProducts';
-import { useStoreConfig } from '../hooks/useAdminData';
-import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { useStoreConfig, useCategories } from '../hooks/useAdminData';
+import { displayStoreProductTitle, isSkuLikeProductCode, resolveStoreProductDisplayTitle } from '../lib/storeShortTitle';
+import { resolveProductHighlights } from '../lib/productHighlights';
+import { displayCategoryName } from '../lib/categoryLabels';
 import { useCart } from '../components/CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo } from 'react';
@@ -101,7 +103,19 @@ function stripPlaceholderStoryEyebrows(html: string): string {
   }
 }
 
-/** Product Story 内联 HTML 的排版：含图块为卡片栅格；纯文字块为左侧强调线的阅读样式 */
+function normalizeDetailHtmlStory(html: string): string {
+  const raw = html.trim();
+  if (!raw) return raw;
+  if (/<[a-zA-Z][\s\S]*?>/.test(raw)) return raw;
+  const escaped = raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n{2,}/g, '</p><p class="detail-body-paragraph leading-relaxed">')
+    .replace(/\n/g, '<br/>');
+  return `<div class="detail-html-body space-y-4"><p class="detail-body-paragraph leading-relaxed">${escaped}</p></div>`;
+}
 const PRODUCT_STORY_BODY_CLASSNAME = [
   'w-full min-w-0 space-y-6 text-brand-navy/65 font-medium leading-relaxed text-base md:text-lg',
   '[&_.detail-html-body]:text-brand-navy/80 [&_.detail-html-body_a]:text-brand-beige [&_.detail-html-body_a]:underline',
@@ -130,6 +144,7 @@ export default function ProductDetail() {
   const { product, loading } = useProduct(id!);
   const { products: relatedProducts } = useProducts(product?.category);
   const { config } = useStoreConfig();
+  const { categories } = useCategories();
   const { addItem } = useCart();
   const [activeMedia, setActiveMedia] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -137,27 +152,41 @@ export default function ProductDetail() {
 
   const displayTitle = useMemo(() => {
     if (!product) return '';
-    return displayStoreProductTitle(product);
+    return resolveStoreProductDisplayTitle(product);
   }, [product]);
 
-  const hasDistinctShortTitle = useMemo(
-    () => Boolean(product && displayTitle.trim() !== product.name.trim()),
-    [product, displayTitle],
-  );
+  const modelCode = useMemo(() => {
+    if (!product) return '';
+    const raw = (product.name || '').trim();
+    return isSkuLikeProductCode(raw) ? raw : '';
+  }, [product]);
 
-  const sidebarLeadDescription = useMemo(
-    () => (product ? leadDescriptionParagraph(product.description || '') : ''),
-    [product],
-  );
+  const hasSecondaryTitleLine = useMemo(() => {
+    if (!product) return false;
+    if (modelCode) return true;
+    return Boolean(product.shortTitle?.trim() && product.shortTitle.trim() !== displayTitle.trim());
+  }, [product, modelCode, displayTitle]);
+
+  const secondaryTitleLine = useMemo(() => {
+    if (!product) return '';
+    if (modelCode) return `Model ${modelCode}`;
+    const st = (product.shortTitle || '').trim();
+    if (st && st !== displayTitle.trim()) return product.name.trim();
+    return '';
+  }, [product, modelCode, displayTitle]);
+
+  const sidebarLeadDescription = useMemo(() => {
+    if (!product) return '';
+    const fromDesc = leadDescriptionParagraph(product.description || '');
+    if (fromDesc) return fromDesc;
+    const plain = (product.detailHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    return leadDescriptionParagraph(plain);
+  }, [product]);
 
   /** 侧栏卖点：首屏最多 4 条紧凑展示，其余折叠，避免与上方摘要抢空间 */
   const asideHighlights = useMemo(() => {
     if (!product) return { primary: [] as string[], rest: [] as string[] };
-    const defaults = ['Compact Footprint', 'Fast Assembly', 'Premium Comfort'];
-    const list =
-      product.features && product.features.length > 0
-        ? product.features.map((f) => String(f).trim()).filter(Boolean)
-        : defaults;
+    const list = resolveProductHighlights(product);
     return {
       primary: list.slice(0, 4),
       rest: list.slice(4),
@@ -178,6 +207,12 @@ export default function ProductDetail() {
       document.title = prev;
     };
   }, [displayTitle]);
+
+  const categoryLabel = useMemo(() => {
+    if (!product) return '';
+    const cat = categories.find((c) => c.slug === product.category);
+    return cat ? displayCategoryName(cat) : product.category;
+  }, [product, categories]);
 
   if (loading) {
     return (
@@ -246,7 +281,7 @@ export default function ProductDetail() {
   `;
 
   const detailHtml = product.detailHtml?.trim() || fallbackDetailHtml;
-  const detailHtmlForStory = stripPlaceholderStoryEyebrows(detailHtml);
+  const detailHtmlForStory = stripPlaceholderStoryEyebrows(normalizeDetailHtmlStory(detailHtml));
 
   const recommendations = relatedProducts
     .filter((item) => item.id !== product.id)
@@ -294,7 +329,7 @@ export default function ProductDetail() {
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-brand-navy/30 font-bold mb-10">
           <Link to="/" className="hover:text-brand-navy transition-colors">Home</Link>
           <span className="opacity-30">/</span>
-          <Link to={`/category/${product.category}`} className="hover:text-brand-navy capitalize">{product.category}</Link>
+          <Link to={`/category/${product.category}`} className="hover:text-brand-navy capitalize">{categoryLabel}</Link>
           <span className="opacity-30">/</span>
           <span className="text-brand-navy line-clamp-2">{displayTitle}</span>
         </div>
@@ -319,9 +354,6 @@ export default function ProductDetail() {
               ) : (
                 <img src={currentMedia.url} alt={mediaAltBase} className="w-full h-full object-cover" />
               )}
-              <div className="absolute left-5 top-5 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-navy shadow-sm">
-                {currentMedia.label}
-              </div>
             </motion.div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
@@ -360,12 +392,12 @@ export default function ProductDetail() {
                     : displayTitle.length > 28
                       ? 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-[1.08] line-clamp-5'
                       : 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-[1.05]'
-              } ${hasDistinctShortTitle ? 'mb-3' : 'mb-8'}`}
+              } ${hasSecondaryTitleLine ? 'mb-3' : 'mb-8'}`}
             >
               {displayTitle}
             </h1>
-            {hasDistinctShortTitle ? (
-              <p className="text-[11px] text-brand-navy/45 font-medium leading-snug mb-8 line-clamp-4">{product.name}</p>
+            {hasSecondaryTitleLine ? (
+              <p className="text-[11px] text-brand-navy/45 font-medium leading-snug mb-8 line-clamp-2">{secondaryTitleLine}</p>
             ) : null}
 
             {(asideHighlights.primary.length > 0 || asideHighlights.rest.length > 0) && (

@@ -6,7 +6,9 @@ import { useState, useMemo } from 'react';
 import { useCart } from '../components/CartContext';
 import { DEFAULT_CATEGORY_HEROES } from '../data/categoryHeroes';
 import { useStoreConfig, useCategories } from '../hooks/useAdminData';
-import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { displayStoreProductListTitle } from '../lib/storeShortTitle';
+import { getProductDetailOutOfStockHint, getProductDetailLowStockHint } from '../lib/storeShipping';
+import { getProductStockQty, isProductLowStock, isProductOutOfStock } from '../lib/productStock';
 import { ProductListImage } from '../components/ProductListImage';
 import { PRODUCT_LIST_IMAGE_ASPECT_CLASS, PRODUCT_LIST_IMAGE_PLACEHOLDER } from '../lib/productImages';
 import { formatEurPrice } from '../lib/storePrice';
@@ -40,25 +42,40 @@ export default function CategoryPage() {
     return Array.from(subs);
   }, [products]);
 
+  const lowStockThreshold = Math.max(1, config?.lowStockThreshold ?? 10);
+  const outOfStockLabel = getProductDetailOutOfStockHint(config);
+  const lowStockLabel = getProductDetailLowStockHint(config);
+
   const sortedProducts = useMemo(() => {
     let result = [...products];
-    
-    // URL param filter
-    if (subCategory) {
-      result = result.filter(p => p.subCategory === subCategory);
-    }
-    
-    // Sidebar filter
-    if (selectedSubs.length > 0) {
-      result = result.filter(p => p.subCategory && selectedSubs.includes(p.subCategory));
-    }
 
-    // Sort logic
+    if (subCategory) {
+      result = result.filter((p) => p.subCategory === subCategory);
+    }
+    if (selectedSubs.length > 0) {
+      result = result.filter((p) => p.subCategory && selectedSubs.includes(p.subCategory));
+    }
+    result = result.filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1]);
+
     if (sortBy === 'price-asc') result.sort((a, b) => a.price - b.price);
-    if (sortBy === 'price-desc') result.sort((a, b) => b.price - a.price);
-    
-    return result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    else if (sortBy === 'price-desc') result.sort((a, b) => b.price - a.price);
+
+    // 无库存商品仍展示，仅排到同排序规则下的后面
+    result.sort((a, b) => {
+      const aOut = isProductOutOfStock(a);
+      const bOut = isProductOutOfStock(b);
+      if (aOut === bOut) return 0;
+      return aOut ? 1 : -1;
+    });
+
+    return result;
   }, [products, sortBy, priceRange, subCategory, selectedSubs]);
+
+  const isSubCategory = useMemo(() => {
+    if (!slug) return false;
+    const catRow = categories.find((c) => c.slug === slug);
+    return Boolean(catRow?.parentId);
+  }, [slug, categories]);
 
   const currentCategory = useMemo(() => {
     const base =
@@ -75,20 +92,25 @@ export default function CategoryPage() {
     const catRow = slug ? categories.find((c) => c.slug === slug) : undefined;
     const dbTitle = catRow ? displayCategoryName(catRow) : enSlugTitle;
     const ov = slug ? config?.categoryHeroes?.[slug] : undefined;
+    const dbImage = (catRow?.image || '').trim();
+    const heroDefault = slug ? DEFAULT_CATEGORY_HEROES[slug]?.image : undefined;
     if (!ov) {
-      return dbTitle ? { ...base, title: dbTitle } : base;
+      return {
+        ...(dbTitle ? { ...base, title: dbTitle } : base),
+        image: dbImage || base.image || heroDefault || CATEGORY_HERO_FALLBACK,
+      };
     }
     return {
       title: (ov.title && ov.title.trim()) || dbTitle || base.title,
       subtitle: (ov.subtitle && ov.subtitle.trim()) || base.subtitle,
-      image: (ov.image && ov.image.trim()) || base.image,
+      image: (ov.image && ov.image.trim()) || dbImage || base.image || heroDefault || CATEGORY_HERO_FALLBACK,
     };
   }, [slug, config?.categoryHeroes, categories]);
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 animate-pulse mt-[100px]">
-        <div className="h-20 bg-brand-gray mb-12 w-1/3 rounded-xl" />
+        {!isSubCategory && <div className="h-20 bg-brand-gray mb-12 w-1/3 rounded-xl" />}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
           {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="aspect-square bg-brand-gray rounded-xl" />)}
         </div>
@@ -97,8 +119,8 @@ export default function CategoryPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      {/* Category Banner */}
+    <div className={`flex flex-col min-h-screen bg-white ${isSubCategory ? 'pt-[100px]' : ''}`}>
+      {!isSubCategory && (
       <section className="relative h-[55vh] w-full overflow-hidden shrink-0 mt-[100px]">
         <div className="absolute inset-0 bg-brand-navy/30 z-10" />
         <div className="absolute inset-0 w-full h-full">
@@ -117,6 +139,7 @@ export default function CategoryPage() {
         </div>
         <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-white to-transparent z-25" />
       </section>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-16 flex-grow w-full">
         {/* Category Header */}
@@ -235,7 +258,10 @@ export default function CategoryPage() {
         <div className="flex-grow">
           <div className={`grid grid-cols-1 sm:grid-cols-2 ${showFilters ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-x-8 gap-y-20`}>
             {sortedProducts.map((product, i) => {
-              const listTitle = displayStoreProductTitle(product, CATEGORY_GRID_TITLE_MAX);
+              const listTitle = displayStoreProductListTitle(product, CATEGORY_GRID_TITLE_MAX);
+              const stockQty = getProductStockQty(product.stock);
+              const outOfStock = isProductOutOfStock(product);
+              const lowStock = isProductLowStock(product, lowStockThreshold);
               return (
               <motion.div
                 key={product.id}
@@ -246,40 +272,77 @@ export default function CategoryPage() {
                 className="group"
               >
                 <Link to={`/product/${product.id}`}>
-                  <div className={`${PRODUCT_LIST_IMAGE_ASPECT_CLASS} bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray shadow-sm rounded-2xl`}>
+                  <div className={`${PRODUCT_LIST_IMAGE_ASPECT_CLASS} bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray shadow-sm rounded-2xl ${outOfStock ? 'opacity-90' : ''}`}>
                     <ProductListImage
                       product={product}
                       alt={listTitle}
-                      className="group-hover:scale-110 transition-transform duration-700"
+                      className={`group-hover:scale-110 transition-transform duration-700 ${outOfStock ? 'grayscale-[0.35]' : ''}`}
                     />
-                <div className="absolute top-4 left-4">
-                  {product.onSale && (
+                <div className="absolute top-4 left-4 flex flex-col gap-2 items-start">
+                  {outOfStock ? (
+                    <span className="bg-brand-navy/90 text-white text-[8px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-xl">
+                      {outOfStockLabel}
+                    </span>
+                  ) : lowStock ? (
+                    <span className="bg-amber-600 text-white text-[8px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-xl">
+                      {lowStockLabel}
+                    </span>
+                  ) : null}
+                  {product.onSale && !outOfStock ? (
                     <span className="bg-brand-beige text-white text-[8px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-xl">
                       -{Math.round((1 - (product.discountPrice || product.price) / product.price) * 100)}% Privilege
                     </span>
-                  )}
+                  ) : null}
                 </div>
-                    <button 
-                      className="absolute bottom-4 left-4 right-4 bg-brand-navy text-white py-4 text-[10px] uppercase font-bold tracking-widest translate-y-20 group-hover:translate-y-0 transition-all duration-500 hover:bg-brand-beige shadow-2xl rounded-xl flex items-center justify-center gap-2"
+                    <button
+                      type="button"
+                      disabled={outOfStock}
+                      className={`absolute bottom-4 left-4 right-4 py-4 text-[10px] uppercase font-bold tracking-widest transition-all duration-500 shadow-2xl rounded-xl flex items-center justify-center gap-2 ${
+                        outOfStock
+                          ? 'bg-brand-gray text-brand-navy/40 cursor-not-allowed translate-y-0'
+                          : 'bg-brand-navy text-white translate-y-20 group-hover:translate-y-0 hover:bg-brand-beige'
+                      }`}
                       onClick={(e) => {
+                        if (outOfStock) return;
                         e.preventDefault();
                         e.stopPropagation();
                         addItem(product);
                       }}
                     >
-                      <ShoppingCart className="w-3 h-3" />
-                      Add To Collection
+                      {outOfStock ? outOfStockLabel : (
+                        <>
+                          <ShoppingCart className="w-3 h-3" />
+                          Add To Collection
+                        </>
+                      )}
                     </button>
                   </div>
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-bold uppercase tracking-tight mb-1 text-brand-navy group-hover:text-brand-beige transition-colors leading-tight font-brand line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
-                      <p className="text-brand-navy/30 text-[9px] uppercase font-bold tracking-widest">Series: {displaySubCategoryLabel(product.subCategory)}</p>
+                      <h3 className="text-base font-bold normal-case tracking-tight mb-1 text-brand-navy group-hover:text-brand-beige transition-colors leading-tight font-brand line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
+                      <p className="text-brand-navy/30 text-[9px] uppercase font-bold tracking-widest">
+                        {outOfStock ? (
+                          <span className="text-red-700/80">{outOfStockLabel}</span>
+                        ) : (
+                          <>Series: {displaySubCategoryLabel(product.subCategory)} · Stock {stockQty}</>
+                        )}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <span className={`block text-lg font-bold font-brand ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'}`}>
-                        {formatEurPrice(product.price)}
-                      </span>
+                      {product.onSale && product.discountPrice != null && product.discountPrice > 0 && product.discountPrice < product.price ? (
+                        <>
+                          <span className="block text-lg font-bold font-brand text-brand-beige">
+                            {formatEurPrice(product.discountPrice)}
+                          </span>
+                          <span className="block text-[10px] font-bold text-brand-navy/30 line-through">
+                            {formatEurPrice(product.price)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className={`block text-lg font-bold font-brand ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'}`}>
+                          {formatEurPrice(product.price)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Link>
@@ -314,6 +377,6 @@ export default function CategoryPage() {
         </div>
       </div>
     </div>
-  </div>
-);
+    </div>
+  );
 }

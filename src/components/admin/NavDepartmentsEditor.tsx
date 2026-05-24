@@ -84,7 +84,7 @@ export function NavDepartmentsEditor({ categories, config, onSave }: Props) {
           sortOrder: i,
         }));
       await onSave(cleaned);
-      window.alert('Navigation departments saved to server catalog.');
+      window.alert('导航部门已保存到服务端 catalog。');
     } finally {
       setSaving(false);
     }
@@ -92,10 +92,10 @@ export function NavDepartmentsEditor({ categories, config, onSave }: Props) {
 
   return (
     <div className={ADM_CARD + ' mb-6'}>
-      <h3 className={ADM_CARD_TITLE}>Storefront navigation departments</h3>
+      <h3 className={ADM_CARD_TITLE}>前台导航部门</h3>
       <p className={ADM_HINT + ' mb-4'}>
-        Group level-1 categories into 6–8 top-bar items. Mega menu shows L1 → L2 → L3 from the category
-        database. Stored in catalog.config.navDepartments on the server.
+        将一级分类归并为 6–8 个顶栏入口。Mega Menu 按分类库展示 L1 → L2 → L3。配置保存在服务端
+        catalog.config.navDepartments。
       </p>
 
       <div className="space-y-4">
@@ -105,7 +105,7 @@ export function NavDepartmentsEditor({ categories, config, onSave }: Props) {
               <GripVertical className="h-5 w-5 text-slate-300 mt-2 shrink-0" aria-hidden />
               <div className="flex-1 min-w-[200px] grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className={ADM_LABEL_COMPACT}>Department name</label>
+                  <label className={ADM_LABEL_COMPACT}>部门名称</label>
                   <input
                     className={ADM_INPUT}
                     value={dept.name}
@@ -127,13 +127,13 @@ export function NavDepartmentsEditor({ categories, config, onSave }: Props) {
                 type="button"
                 onClick={() => setDepartments((prev) => prev.filter((d) => d.id !== dept.id))}
                 className="p-2 text-red-500 hover:bg-red-50 rounded"
-                title="Remove department"
+                title="删除部门"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
 
-            <p className={ADM_LABEL + ' mb-2'}>Level-1 categories in this department</p>
+            <p className={ADM_LABEL + ' mb-2'}>本部门包含的一级分类</p>
             <div className="flex flex-wrap gap-2">
               {l1Categories.map((cat) => {
                 const checked = dept.categoryIds.includes(cat.id);
@@ -171,20 +171,19 @@ export function NavDepartmentsEditor({ categories, config, onSave }: Props) {
           onClick={() => setDepartments((prev) => [...prev, createEmptyNavDepartment(prev.length)])}
           className="inline-flex items-center gap-1 rounded border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
         >
-          <Plus className="h-4 w-4" /> Add department
+          <Plus className="h-4 w-4" /> 添加部门
         </button>
         <button
           type="button"
           onClick={() => setDepartments(buildDefaultNavDepartments(categories))}
           className="rounded border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
         >
-          Reset to defaults
+          恢复默认
         </button>
         <button type="button" disabled={saving} onClick={() => void handleSave()} className={ADM_BTN_PRIMARY}>
-          {saving ? 'Saving…' : 'Save navigation'}
+          {saving ? '保存中…' : '保存导航'}
         </button>
       </div>
     </div>
   );
 }
-

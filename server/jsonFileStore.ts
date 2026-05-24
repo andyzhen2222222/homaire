@@ -7,7 +7,10 @@ import { EMPTY_STORE_FILE } from './storeTypes';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const STORE_PATH = path.join(DATA_DIR, 'store-v1.json');
-const SNAPSHOT_SEED = path.join(__dirname, '..', 'public', 'feishu-bitable-db-v1.json');
+const SNAPSHOT_SEED_PATHS = [
+  path.join(__dirname, '..', 'public', 'feishu-bitable-db-v1.json'),
+  path.join(__dirname, '..', 'dist', 'feishu-bitable-db-v1.json'),
+];
 
 let writeQueue: Promise<void> = Promise.resolve();
 
@@ -20,36 +23,41 @@ function runExclusive<T>(fn: () => T | Promise<T>): Promise<T> {
   return next;
 }
 
-function seedFromPublicSnapshot(): StoreFile | null {
-  if (!fs.existsSync(SNAPSHOT_SEED)) return null;
-  try {
-    const raw = JSON.parse(fs.readFileSync(SNAPSHOT_SEED, 'utf8')) as {
-      products?: unknown;
-      categories?: unknown;
-      promotions?: unknown;
-      config?: unknown;
-      orders?: unknown;
-    };
-    return {
-      revision: 1,
-      updatedAt: new Date().toISOString(),
-      catalog: {
-        products: Array.isArray(raw.products) ? (raw.products as StoreCatalog['products']) : [],
-        categories: Array.isArray(raw.categories) ? (raw.categories as StoreCatalog['categories']) : [],
-        promotions: Array.isArray(raw.promotions) ? (raw.promotions as StoreCatalog['promotions']) : [],
-        config: (raw.config as StoreCatalog['config']) ?? { id: 'global', storeName: 'HOMAIRE' },
-      },
-      orders: Array.isArray(raw.orders) ? (raw.orders as StoreOrder[]) : [],
-    };
-  } catch {
-    return null;
+function seedFromSnapshot(): StoreFile | null {
+  for (const seedPath of SNAPSHOT_SEED_PATHS) {
+    if (!fs.existsSync(seedPath)) continue;
+    try {
+      const raw = JSON.parse(fs.readFileSync(seedPath, 'utf8')) as {
+        products?: unknown;
+        categories?: unknown;
+        promotions?: unknown;
+        config?: unknown;
+        orders?: unknown;
+      };
+      const products = Array.isArray(raw.products) ? (raw.products as StoreCatalog['products']) : [];
+      if (products.length === 0) continue;
+      return {
+        revision: 1,
+        updatedAt: new Date().toISOString(),
+        catalog: {
+          products,
+          categories: Array.isArray(raw.categories) ? (raw.categories as StoreCatalog['categories']) : [],
+          promotions: Array.isArray(raw.promotions) ? (raw.promotions as StoreCatalog['promotions']) : [],
+          config: (raw.config as StoreCatalog['config']) ?? { id: 'global', storeName: 'HOMAIRE' },
+        },
+        orders: Array.isArray(raw.orders) ? (raw.orders as StoreOrder[]) : [],
+      };
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 export function readStoreFile(): StoreFile {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(STORE_PATH)) {
-    const seeded = seedFromPublicSnapshot();
+    const seeded = seedFromSnapshot();
     const initial = seeded ?? { ...EMPTY_STORE_FILE, updatedAt: new Date().toISOString() };
     fs.writeFileSync(STORE_PATH, JSON.stringify(initial), 'utf8');
     return initial;

@@ -9,6 +9,7 @@ import {
 } from '../../lib/feishuCategorySync';
 import { fetchFeishuCliStatus, syncCategoryFromFeishu } from '../../lib/feishuSyncClient';
 import { displayCategoryName } from '../../lib/categoryLabels';
+import { FeishuFieldMappingPanel } from './FeishuFieldMappingPanel';
 
 const ADMIN_FORM_LABEL = 'mb-1.5 block text-sm text-[#606266]';
 const ADMIN_FORM_HINT = 'mt-1 text-xs text-[#909399] leading-relaxed';
@@ -42,15 +43,16 @@ export function CategoryFeishuFormFields({
     <div className="rounded-sm border border-[#e4e7ed] bg-[#fafafa] p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-medium text-[#303133]">
         <Link2 className="h-4 w-4 text-[#409eff]" />
-        Feishu Bitable source
+        飞书多维表格数据源
       </div>
       <p className={ADMIN_FORM_HINT}>
-        Each category can have one Feishu link. Use the editor URL with <code className="text-[11px]">/base/</code>.
-        Synced products are written to <span className="font-medium text-[#409eff]">/{categorySlug || '…'}</span> and
-        replace previous Feishu-synced items in that category.
+        每个分类可绑定一个飞书链接，请使用含 <code className="text-[11px]">/base/</code> 的编辑页 URL。
+        同步后的商品写入 <span className="font-medium text-[#409eff]">/{categorySlug || '…'}</span>，
+        并替换该分类下此前由飞书同步的商品。
+        列名与系统字段的固定映射见下方「飞书字段映射与使用说明」。
       </p>
       <div>
-        <label className={ADMIN_FORM_LABEL}>Feishu Bitable URL</label>
+        <label className={ADMIN_FORM_LABEL}>飞书多维表格 URL</label>
         <input
           type="url"
           value={feishuBitableUrl}
@@ -60,7 +62,7 @@ export function CategoryFeishuFormFields({
         />
         {shareWarn ? (
           <p className="mt-1 text-xs text-amber-700">
-            Share-view links cannot sync. Open the table in Feishu edit mode and copy the address bar URL.
+            分享视图链接无法同步。请在飞书编辑模式下打开表格，复制地址栏 URL。
           </p>
         ) : null}
       </div>
@@ -71,10 +73,10 @@ export function CategoryFeishuFormFields({
           onChange={(e) => setFeishuSyncEnabled(e.target.checked)}
           className="rounded border-[#dcdfe6]"
         />
-        Enable scheduled sync (while admin is open)
+        启用定时同步（后台页面打开时）
       </label>
       <div>
-        <label className={ADMIN_FORM_LABEL}>Sync interval (minutes)</label>
+        <label className={ADMIN_FORM_LABEL}>同步间隔（分钟）</label>
         <input
           type="number"
           min={15}
@@ -89,7 +91,7 @@ export function CategoryFeishuFormFields({
           className={`${ADMIN_FORM_CONTROL} max-w-[140px]`}
         />
         <p className={ADMIN_FORM_HINT}>
-          Default {DEFAULT_FEISHU_SYNC_INTERVAL_MINUTES} min; minimum 15 min.
+          默认 {DEFAULT_FEISHU_SYNC_INTERVAL_MINUTES} 分钟；最少 15 分钟。
         </p>
       </div>
     </div>
@@ -116,7 +118,7 @@ export function CategoriesFeishuSyncPanel({
   const refreshCliStatus = useCallback(async () => {
     const s = await fetchFeishuCliStatus();
     setCliReady(Boolean(s.userReady));
-    setCliHint(s.hint || s.error || (s.userReady ? `Connected · ${s.userName || 'user'}` : ''));
+    setCliHint(s.hint || s.error || (s.userReady ? `已连接 · ${s.userName || '用户'}` : ''));
   }, []);
 
   useEffect(() => {
@@ -129,8 +131,8 @@ export function CategoriesFeishuSyncPanel({
   const runSync = async (cat: Category, opts?: { silent?: boolean }) => {
     const url = (cat.feishuBitableUrl || '').trim();
     if (!url) {
-      if (!opts?.silent) window.alert('Add a Feishu URL on this category first');
-      throw new Error('Feishu URL not configured');
+      if (!opts?.silent) window.alert('请先在该分类中填写飞书 URL');
+      throw new Error('未配置飞书 URL');
     }
     setSyncingId(cat.id);
     try {
@@ -142,16 +144,16 @@ export function CategoriesFeishuSyncPanel({
       await onUpdateCategory(cat.id, {
         feishuLastSyncedAt: new Date().toISOString(),
         feishuLastSyncCount: added,
-        feishuLastSyncMessage: `OK: ${rawRowCount} rows → ${added} products (removed ${removed} old Feishu items)`,
+        feishuLastSyncMessage: `成功：${rawRowCount} 行 → ${added} 条商品（移除 ${removed} 条旧飞书商品）`,
       });
       if (!opts?.silent)
-        window.alert(`${displayCategoryName(cat)} sync complete: ${added} products`);
+        window.alert(`${displayCategoryName(cat)} 同步完成：${added} 条商品`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await onUpdateCategory(cat.id, {
         feishuLastSyncedAt: new Date().toISOString(),
         feishuLastSyncCount: 0,
-        feishuLastSyncMessage: `Failed: ${msg}`,
+        feishuLastSyncMessage: `失败：${msg}`,
       });
       if (!opts?.silent) window.alert(msg);
       throw e;
@@ -163,7 +165,7 @@ export function CategoriesFeishuSyncPanel({
   const runSyncAll = async () => {
     const list = configured.filter((c) => !isFeishuShareViewUrl(c.feishuBitableUrl || ''));
     if (list.length === 0) {
-      window.alert('No categories with a valid Feishu URL');
+      window.alert('没有已配置有效飞书 URL 的分类');
       return;
     }
     setSyncingAll(true);
@@ -178,7 +180,7 @@ export function CategoriesFeishuSyncPanel({
       }
     }
     setSyncingAll(false);
-    window.alert(`Sync all finished: ${ok} succeeded, ${fail} failed`);
+    window.alert(`全部同步完成：成功 ${ok} 个，失败 ${fail} 个`);
   };
 
   return (
@@ -186,7 +188,7 @@ export function CategoriesFeishuSyncPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
           <Link2 className="h-4 w-4 text-[#409eff]" />
-          Feishu Bitable sync
+          飞书多维表格同步
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -194,7 +196,7 @@ export function CategoriesFeishuSyncPanel({
             onClick={() => void refreshCliStatus()}
             className={ADMIN_BTN_DEFAULT}
           >
-            Check CLI
+            检查 CLI
           </button>
           <button
             type="button"
@@ -202,7 +204,7 @@ export function CategoriesFeishuSyncPanel({
             onClick={() => void runSyncAll()}
             className={ADMIN_BTN_PRIMARY}
           >
-            {syncingAll ? 'Syncing…' : 'Sync all configured'}
+            {syncingAll ? '同步中…' : '同步全部已配置'}
           </button>
         </div>
       </div>
@@ -210,28 +212,29 @@ export function CategoriesFeishuSyncPanel({
         {cliReady === true ? (
           <span className="inline-flex items-center gap-1 text-emerald-700">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            Feishu CLI ready
+            飞书 CLI 就绪
           </span>
         ) : cliReady === false ? (
           <span className="inline-flex items-center gap-1 text-amber-700">
             <AlertCircle className="h-3.5 w-3.5" />
-            CLI not signed in
+            CLI 未登录
           </span>
         ) : null}
         {cliHint ? <span className="text-slate-500">{cliHint}</span> : null}
         <span>
-          <strong>{configured.length}</strong> linked · <strong>{autoEnabled.length}</strong> scheduled
+          <strong>{configured.length}</strong> 已绑定 · <strong>{autoEnabled.length}</strong> 定时同步
         </span>
         <span className="inline-flex items-center gap-1 text-slate-500">
           <Clock className="h-3.5 w-3.5" />
-          Checks every minute while admin is open
+          后台打开时每分钟检查一次
         </span>
       </div>
       <p className="text-[11px] text-slate-500 leading-relaxed">
-        Requires dev server API (<code className="text-[10px]">npm run dev</code>) and local{' '}
-        <code className="text-[10px]">lark-cli</code>. In production, deploy a sync service or run{' '}
-        <code className="text-[10px]">npm run sync:feishu</code>.
+        需要开发服务器 API（<code className="text-[10px]">npm run dev</code>）及本地{' '}
+        <code className="text-[10px]">lark-cli</code>。生产环境请部署同步服务或运行{' '}
+        <code className="text-[10px]">npm run sync:feishu</code>。
       </p>
+      <FeishuFieldMappingPanel />
     </div>
   );
 }
@@ -258,17 +261,17 @@ export function CategoryFeishuSyncCell({
           className={`inline-block max-w-[160px] truncate text-[10px] ${badUrl ? 'text-amber-700' : 'text-emerald-700'}`}
           title={url}
         >
-          {badUrl ? 'Need /base/ URL' : 'Configured'}
+          {badUrl ? '需 /base/ URL' : '已配置'}
         </span>
       ) : (
-        <span className="text-[10px] text-slate-400">Not set</span>
+        <span className="text-[10px] text-slate-400">未设置</span>
       )}
       <p className={`text-[10px] leading-snug ${failed ? 'text-red-600' : 'text-slate-500'}`}>
         {formatFeishuLastSync(cat)}
       </p>
       {cat.feishuSyncEnabled ? (
         <span className="text-[10px] text-[#409eff]">
-          Auto · {cat.feishuSyncIntervalMinutes ?? 120} min
+          自动 · {cat.feishuSyncIntervalMinutes ?? 120} 分钟
         </span>
       ) : null}
       <button
@@ -278,7 +281,7 @@ export function CategoryFeishuSyncCell({
         className="inline-flex items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-[#1677ff] hover:bg-slate-50 disabled:opacity-40"
       >
         <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
-        Sync
+        同步
       </button>
     </div>
   );

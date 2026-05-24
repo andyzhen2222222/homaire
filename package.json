@@ -12,10 +12,15 @@
     "test:import": "tsx scripts/test-product-import.ts",
     "import:djian": "tsx scripts/import-djian-sofa-csv.ts",
     "sync:feishu": "tsx scripts/sync-feishu-bitable.ts",
+    "resync:feishu": "tsx scripts/resync-all-feishu.ts",
+    "diag:feishu": "tsx scripts/diag-feishu-price-title.ts",
     "publish:snapshot": "tsx scripts/publish-db-snapshot.ts",
     "generate:categories": "node scripts/generate-gigab2b-categories.mjs",
     "migrate:catalog-categories": "tsx scripts/migrate-catalog-categories.ts",
     "migrate:server": "tsx scripts/migrate-browser-to-server.ts",
+    "ensure:catalog": "tsx scripts/ensure-server-catalog.ts",
+    "deploy:prepare": "npm run migrate:server && npm run build",
+    "prestart": "npm run ensure:catalog",
     "start": "tsx server/start.ts"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import type { Category, Product } from '../types';
 import {
   getGigab2bCategoriesFlat,
+  GIGAB2B_HERO_IMAGES,
   isLegacyFlatCategoryTree,
   migrateLegacyProductCategory,
 } from '../data/gigab2bCategoryData';
@@ -25,6 +26,15 @@ export function applyGigab2bCategoryMigration(state: {
       dirty = true;
     }
   }
+
+  categories = categories.map((c) => {
+    if (c.parentId) return c;
+    if ((c.image || '').trim()) return c;
+    const fallback = GIGAB2B_HERO_IMAGES[c.slug];
+    if (!fallback) return c;
+    dirty = true;
+    return { ...c, image: fallback };
+  });
 
   const products = state.products.map((p) => {
     const next = migrateLegacyProductCategory(p.category || '');

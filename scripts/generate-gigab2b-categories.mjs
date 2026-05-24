@@ -78,32 +78,6 @@ for (const line of md.split(/\r?\n/)) {
   }
 }
 
-const LEVEL1_IMAGES = Object.fromEntries(
-  tree.map((n) => [
-    n.slug,
-    {
-      furniture: '/home-categories/homaire-cat-sofas.png',
-      'garden-outdoor': '/home-categories/homaire-cat-garden.png',
-      'fitness-sports': '/home-categories/homaire-cat-chairs.png',
-      'bath-faucets': '/home-categories/homaire-cat-decor.png',
-      kitchen: '/home-categories/homaire-cat-tables.png',
-      'pet-supplies': '/home-categories/homaire-cat-decor.png',
-      toys: '/home-categories/homaire-cat-decor.png',
-      'auto-parts-transport': '/home-categories/homaire-cat-storage.png',
-      lighting: '/home-categories/homaire-cat-lighting.png',
-      'household-supplies-decor': '/home-categories/homaire-cat-decor.png',
-      travel: '/home-categories/homaire-cat-storage.png',
-      'electrical-appliances': '/home-categories/homaire-cat-lighting.png',
-      'tools-tool-organizers': '/home-categories/homaire-cat-storage.png',
-      'home-improvement': '/home-categories/homaire-cat-storage.png',
-      commercial: '/home-categories/homaire-cat-tables.png',
-      'industrial-scientific': '/home-categories/homaire-cat-beds.png',
-      other: '/home-categories/homaire-cat-decor.png',
-      part: '/home-categories/homaire-cat-storage.png',
-    }[n.slug] || '/home-categories/homaire-cat-decor.png',
-  ]),
-);
-
 const HERO_IMAGES = {
   furniture: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000',
   'garden-outdoor': 'https://images.unsplash.com/photo-1517409197771-1520a09e8b91?auto=format&fit=crop&q=80&w=2000',
@@ -124,6 +98,8 @@ const HERO_IMAGES = {
   other: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=2000',
   part: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&q=80&w=2000',
 };
+
+const LEVEL1_IMAGES = { ...HERO_IMAGES };
 
 const HERO_SUBTITLES = {
   furniture: 'Bedroom, dining, living, office and more — curated for modern homes.',

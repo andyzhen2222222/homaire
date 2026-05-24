@@ -3,6 +3,7 @@
  */
 
 import { extractHttpImageUrl } from './productImages';
+import { getFeishuFieldAliasRecord } from './feishuImportFieldMapping';
 
 export type FeishuBitableTarget = {
   baseToken: string;
@@ -91,54 +92,42 @@ export function flattenBitableCell(value: unknown): string | number | boolean | 
 
   if (typeof value === 'object') {
     const o = value as Record<string, unknown>;
+    if (Array.isArray(o.value) && o.value.length > 0) {
+      const first = o.value[0];
+      if (typeof first === 'number' && Number.isFinite(first)) return first;
+      if (typeof first === 'string' && first.trim()) return first.trim();
+    }
+    if (typeof o.value === 'number' && Number.isFinite(o.value)) return o.value;
+    if (typeof o.value === 'string' && o.value.trim()) return o.value.trim();
     if (typeof o.link === 'string') return o.link.trim();
     if (typeof o.text === 'string') return o.text.trim();
-    if (typeof o.value === 'number') return o.value;
   }
 
   return String(value).trim();
 }
 
-/** 字段名 → Homaire 导入列（支持中英文与 GIGA 列名） */
-const FIELD_ALIASES: Record<string, string[]> = {
-  name: [
-    'name',
-    'Name',
-    '名称',
-    '商品名',
-    '标题',
-    '产品型号',
-    '标题-英语',
-    '标题-法语',
-    'product',
-    'Product',
-    'SKU',
-    'sku',
-  ],
-  shortTitle: ['shortTitle', 'ShortTitle', '短标题', '店铺标题', '英文标题', '标题-英语'],
-  price: [
-    'price',
-    'Price',
-    '价格',
-    '售价',
-    '德国最新单价',
-    '法国最新单价',
-    '法国平台售价',
-    '单价',
-    '单价-人民币',
-  ],
-  stock: ['stock', 'Stock', '库存', '可售库存', '拉取库存', '线上库存', '数量'],
-  category: ['category', 'Category', '类目', '分类', '品类'],
-  description: ['description', 'Description', '描述', '简介', '简短描述1', '简短描述'],
-  detailHtml: ['detailHtml', 'DetailHtml', '详情', '长描述', 'html', 'HTML'],
-  images: ['images', 'Images', '图片', '主图', '图片1', 'image', 'Image', '附件'],
-  features: ['features', 'Features', '卖点', '特点', '简短描述2', '简短描述3', '简短描述4', '简短描述5'],
-  subCategory: ['subCategory', 'SubCategory', '子类', '沙发类型', '沙发类型-中文'],
-  videoUrl: ['videoUrl', 'VideoUrl', '视频'],
-  manualUrl: ['manualUrl', 'ManualUrl', '说明书'],
-  onSale: ['onSale', 'OnSale', '促销', '上架'],
-  discountPrice: ['discountPrice', 'DiscountPrice', '折扣价', '活动价'],
-};
+/** 读取已映射导入行中的单个飞书列（自动 flatten） */
+export function readImportCell(item: Record<string, unknown>, key: string): string {
+  if (!(key in item)) return '';
+  const flat = flattenBitableCell(item[key]);
+  if (flat === '' || flat == null) return '';
+  if (typeof flat === 'number' && Number.isFinite(flat)) return String(flat);
+  if (typeof flat === 'boolean') return flat ? 'true' : 'false';
+  if (Array.isArray(flat)) return flat.map((x) => String(x)).filter(Boolean).join(', ');
+  return String(flat).trim();
+}
+
+/** 将飞书 record 所有列 flatten 为可解析的标量 */
+export function normalizeFeishuImportRow(fields: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [fieldName, raw] of Object.entries(fields)) {
+    out[fieldName] = flattenBitableCell(raw);
+  }
+  return out;
+}
+
+/** 字段名 → Homaire 导入列（定义见 feishuImportFieldMapping.ts） */
+const FIELD_ALIASES = getFeishuFieldAliasRecord();
 
 function pickAliasKey(fieldName: string): string | null {
   const n = fieldName.trim();
@@ -153,9 +142,10 @@ function pickAliasKey(fieldName: string): string | null {
 export function mapBitableRecordToImportRow(
   fields: Record<string, unknown>
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...fields };
+  const normalized = normalizeFeishuImportRow(fields);
+  const out: Record<string, unknown> = { ...normalized };
 
-  for (const [fieldName, raw] of Object.entries(fields)) {
+  for (const [fieldName, raw] of Object.entries(normalized)) {
     const flat = flattenBitableCell(raw);
     const key = pickAliasKey(fieldName);
     if (key) {
@@ -177,9 +167,11 @@ export function mapBitableRecordToImportRow(
     }
   }
 
-  // 保留 GIGA 原始列，供 isDjianCloudSourceRow 识别
-  if (fields['产品型号'] != null) {
-    out['产品型号'] = flattenBitableCell(fields['产品型号']);
+  if (normalized['产品型号'] != null) {
+    out['产品型号'] = flattenBitableCell(normalized['产品型号']);
+  }
+  if (normalized['SKU'] != null && !out.sku) {
+    out.sku = flattenBitableCell(normalized['SKU']);
   }
 
   return out;

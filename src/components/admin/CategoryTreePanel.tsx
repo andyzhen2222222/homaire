@@ -77,13 +77,13 @@ export function CategoryTreePanel({
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-3 py-2 text-xs font-semibold text-slate-600">Category tree</th>
-            <th className="px-3 py-2 text-xs font-semibold text-slate-600 w-16">Level</th>
-            <th className="px-3 py-2 text-xs font-semibold text-slate-600 w-14">Cover</th>
+            <th className="px-3 py-2 text-xs font-semibold text-slate-600">分类树</th>
+            <th className="px-3 py-2 text-xs font-semibold text-slate-600 w-16">层级</th>
+            <th className="px-3 py-2 text-xs font-semibold text-slate-600 w-14">封面</th>
             <th className="px-3 py-2 text-xs font-semibold text-slate-600">Slug</th>
-            <th className="px-3 py-2 text-xs font-semibold text-slate-600">Feishu</th>
-            <th className="px-3 py-2 text-xs font-semibold text-slate-600 w-16">Items</th>
-            <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Actions</th>
+            <th className="px-3 py-2 text-xs font-semibold text-slate-600">飞书</th>
+            <th className="px-3 py-2 text-xs font-semibold text-slate-600 w-16">商品数</th>
+            <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -104,7 +104,7 @@ export function CategoryTreePanel({
                         type="button"
                         onClick={() => toggle(cat.id)}
                         className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100"
-                        aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+                        aria-label={isCollapsed ? '展开' : '收起'}
                       >
                         {isCollapsed ? (
                           <ChevronRight className="h-4 w-4" />
@@ -155,11 +155,11 @@ export function CategoryTreePanel({
                     {canAddChild ? (
                       <button
                         type="button"
-                        title="Add child category"
+                        title="添加子分类"
                         onClick={() => onAddChild(cat.id)}
                         className="rounded border border-slate-200 px-2 py-1 text-[11px] text-[#1677ff] hover:bg-slate-50 inline-flex items-center gap-0.5"
                       >
-                        <Plus className="h-3 w-3" /> Child
+                        <Plus className="h-3 w-3" /> 子分类
                       </button>
                     ) : null}
                     <button
@@ -174,13 +174,13 @@ export function CategoryTreePanel({
                       onClick={() => {
                         const msg =
                           productCount > 0
-                            ? `About ${productCount} products use this subtree. Delete category config only?`
-                            : 'Delete this category?';
+                            ? `该分类树下约有 ${productCount} 件商品。仅删除分类配置（不删商品）？`
+                            : '确定删除此分类？';
                         if (confirm(msg)) onDelete(cat.id);
                       }}
                       className="rounded px-2 py-1 text-[11px] text-red-500 hover:bg-red-50"
                     >
-                      Del
+                      删除
                     </button>
                   </div>
                 </td>

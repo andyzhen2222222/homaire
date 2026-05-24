@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return {
           ok: false,
           error:
-            'Incorrect admin password. If VITE_LOCAL_ADMIN_PASSWORD is not set in .env, use the default password admin; otherwise use the value from your .env file.',
+            '管理员密码不正确。若 .env 未设置 VITE_LOCAL_ADMIN_PASSWORD，默认密码为 admin；否则请使用 .env 中的配置值。',
         };
       }
 

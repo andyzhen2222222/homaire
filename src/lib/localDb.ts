@@ -230,12 +230,23 @@ async function fetchCatalogSnapshotJson(): Promise<string | null> {
  * - 开发环境已有商品 → 不覆盖
  */
 export async function tryAutoLoadFeishuSnapshot(): Promise<number> {
-  const existing = getLocalProducts().length;
-  if (existing > 0) return existing;
-
   const json = await fetchCatalogSnapshotJson();
-  if (!json) return 0;
-  return replaceLocalDbFromSnapshotJson(json);
+  if (!json) return getLocalProducts().length;
+
+  let snapCount = 0;
+  try {
+    const parsed = JSON.parse(json) as { products?: unknown[] };
+    snapCount = Array.isArray(parsed.products) ? parsed.products.length : 0;
+  } catch {
+    return getLocalProducts().length;
+  }
+
+  const existing = getLocalProducts().length;
+  // 本地已有旧库、但部署快照更大时（例如新增 tables 飞书同步）自动升级
+  if (existing === 0 || snapCount > existing) {
+    return replaceLocalDbFromSnapshotJson(json);
+  }
+  return existing;
 }
 
 /** 强制从部署快照重新加载（覆盖当前浏览器中的商品库） */

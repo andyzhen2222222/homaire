@@ -20,9 +20,14 @@ if (!fs.existsSync(distDir)) {
   process.exit(1);
 }
 
-// Ensure store file exists (may seed from public snapshot)
-readStoreFile();
+// Ensure store file exists (may seed from public/dist snapshot)
+const store = readStoreFile();
+const productCount = store.catalog.products?.length ?? 0;
 console.log('Store file:', getStorePath());
+console.log(`Catalog: ${productCount} products (revision ${store.revision})`);
+if (productCount === 0) {
+  console.warn('Catalog is empty — run: npm run migrate:server -- public/feishu-bitable-db-v1.json');
+}
 
 const app = express();
 app.disable('x-powered-by');
