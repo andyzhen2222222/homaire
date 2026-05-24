@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Trash2, Plus, Minus, ArrowRight, ShieldCheck, Truck } from 'lucide-react';
 import { useStoreConfig } from '../hooks/useAdminData';
 import { formatStoreMoney, getShippingFlatFee, getShippingFreeThreshold } from '../lib/storeShipping';
+import { formatEurPrice } from '../lib/storePrice';
 import { displayStoreProductTitle } from '../lib/storeShortTitle';
 
 const CART_ROW_TITLE_MAX = 52;
@@ -77,9 +78,9 @@ export default function CartPage() {
                         ><Plus className="w-3 h-3" /></button>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-brand font-bold text-brand-navy tracking-tighter leading-none mb-2">€ {(item.price * item.quantity).toLocaleString()}</p>
+                        <p className="text-3xl font-brand font-bold text-brand-navy tracking-tighter leading-none mb-2">{formatEurPrice(item.price * item.quantity)}</p>
                         {item.quantity > 1 && (
-                          <p className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.2em]">€ {item.price.toLocaleString()} unit price</p>
+                          <p className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.2em]">{formatEurPrice(item.price)} unit price</p>
                         )}
                       </div>
                     </div>
@@ -97,7 +98,7 @@ export default function CartPage() {
               <div className="space-y-6 text-sm font-bold mb-10 pb-10 border-b border-brand-gray text-brand-navy/40">
                 <div className="flex justify-between items-center">
                   <span className="uppercase tracking-[0.2em] text-[10px]">Value Contribution</span>
-                  <span className="text-brand-navy">€ {totalPrice.toLocaleString()}</span>
+                  <span className="text-brand-navy">{formatEurPrice(totalPrice)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="uppercase tracking-[0.2em] text-[10px]">Logistics / Handling</span>

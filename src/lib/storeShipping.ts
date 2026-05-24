@@ -1,17 +1,18 @@
 import type { StoreConfig } from '../types';
+import { formatStorePriceAmount, roundStorePrice } from './storePrice';
 
 export const DEFAULT_SHIPPING_FREE_THRESHOLD = 500;
 export const DEFAULT_SHIPPING_FLAT_FEE = 49.95;
 
-export const DEFAULT_PRODUCT_DETAIL_STOCK_LABEL = '可用库存';
-export const DEFAULT_PRODUCT_DETAIL_SHIPPING_LABEL = '预估运费';
-export const DEFAULT_PRODUCT_DETAIL_SHIPPING_FREE_LABEL = '免运费';
-export const DEFAULT_PRODUCT_DETAIL_LOW_STOCK_HINT = '库存偏紧，建议尽快下单';
-export const DEFAULT_PRODUCT_DETAIL_OUT_OF_STOCK_HINT = '暂时无货';
+export const DEFAULT_PRODUCT_DETAIL_STOCK_LABEL = 'Available stock';
+export const DEFAULT_PRODUCT_DETAIL_SHIPPING_LABEL = 'Estimated shipping';
+export const DEFAULT_PRODUCT_DETAIL_SHIPPING_FREE_LABEL = 'Complimentary shipping';
+export const DEFAULT_PRODUCT_DETAIL_LOW_STOCK_HINT = 'Low stock — order soon';
+export const DEFAULT_PRODUCT_DETAIL_OUT_OF_STOCK_HINT = 'Out of stock';
 
-/** 详情页运费说明；支持占位符 {threshold}、{flat}（已带货币格式） */
+/** Product detail shipping footnote; placeholders {threshold}, {flat} (formatted) */
 export const DEFAULT_PRODUCT_DETAIL_SHIPPING_FOOTNOTE_TEMPLATE =
-  '按当前数量 × 单价满 {threshold} 免运费，否则加收 {flat}；以结账页为准。';
+  'Free shipping when line subtotal exceeds {threshold}; otherwise {flat} applies. Final rates at checkout.';
 
 export function getShippingFreeThreshold(config?: StoreConfig | null): number {
   const n = config?.shippingFreeThreshold;
@@ -27,9 +28,10 @@ export function getShippingFlatFee(config?: StoreConfig | null): number {
 
 /** 与站点其余价格展示一致：EUR 用 € 前缀 */
 export function formatStoreMoney(amount: number, currency?: string | null): string {
+  const n = roundStorePrice(amount);
   const cu = (currency || 'EUR').toUpperCase();
-  if (cu === 'EUR') return `€ ${amount.toLocaleString()}`;
-  return `${cu} ${amount.toLocaleString()}`;
+  if (cu === 'EUR') return `€ ${formatStorePriceAmount(n)}`;
+  return `${cu} ${formatStorePriceAmount(n)}`;
 }
 
 export function getProductDetailStockLabel(config?: StoreConfig | null): string {

@@ -15,6 +15,7 @@ import {
   Truck,
 } from 'lucide-react';
 import Logo from '../components/Logo';
+import { formatEurPrice, roundStorePrice } from '../lib/storePrice';
 import {
   formatStoreMoney,
   getProductDetailLowStockHint,
@@ -73,9 +74,6 @@ const PLACEHOLDER_EYEBROW_LABELS = new Set([
   'info',
   'description',
   'overview',
-  '商品',
-  '产品',
-  '详情',
 ]);
 
 function eyebrowTextIsPlaceholder(raw: string): boolean {
@@ -192,13 +190,15 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-white text-brand-navy px-6">
-        <p className="text-lg font-brand font-bold uppercase tracking-tight">未找到该商品</p>
-        <p className="text-sm text-brand-navy/50 text-center max-w-md">该商品可能已从本地数据中移除，或链接无效。</p>
+        <p className="text-lg font-brand font-bold uppercase tracking-tight">Product not found</p>
+        <p className="text-sm text-brand-navy/50 text-center max-w-md">
+          This item may have been removed from the catalog, or the link is invalid.
+        </p>
         <Link
           to="/"
           className="text-xs font-bold uppercase tracking-widest text-brand-beige border border-brand-beige px-8 py-3 rounded-full hover:bg-brand-beige hover:text-white transition-colors"
         >
-          返回首页
+          Back to home
         </Link>
       </div>
     );
@@ -270,7 +270,9 @@ export default function ProductDetail() {
       ? 'text-amber-700'
       : 'text-brand-navy';
 
-  const unitPriceEur = product.onSale && product.discountPrice != null ? product.discountPrice : product.price;
+  const unitPriceEur = roundStorePrice(
+    product.onSale && product.discountPrice != null ? product.discountPrice : product.price
+  );
   const lineSubtotalEur = Math.max(0, unitPriceEur * quantity);
   const freeShipThreshold = getShippingFreeThreshold(config);
   const flatShipFee = getShippingFlatFee(config);
@@ -402,11 +404,11 @@ export default function ProductDetail() {
             <div className="mb-8">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className={`text-5xl font-brand font-bold ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'} tracking-tighter`}>
-                  € {(product.discountPrice || product.price).toLocaleString()}
+                  {formatEurPrice(product.discountPrice || product.price)}
                 </span>
                 {product.onSale && (
                   <span className="text-lg text-brand-navy/25 font-bold line-through tracking-tighter">
-                    € {product.price.toLocaleString()}
+                    {formatEurPrice(product.price)}
                   </span>
                 )}
               </div>
@@ -575,7 +577,7 @@ export default function ProductDetail() {
                     <img src={item.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={cardTitle} />
                   </div>
                   <h4 className="text-sm font-black uppercase tracking-tight text-brand-navy group-hover:text-brand-accent transition-colors leading-tight mb-2 line-clamp-2 break-words hyphens-auto">{cardTitle}</h4>
-                  <p className="text-lg font-black text-brand-navy tracking-tighter">€ {(item.discountPrice || item.price).toLocaleString()}</p>
+                  <p className="text-lg font-black text-brand-navy tracking-tighter">{formatEurPrice(item.discountPrice || item.price)}</p>
                 </Link>
               </motion.div>
               );

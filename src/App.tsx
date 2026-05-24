@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -11,8 +12,19 @@ import AdminDashboard from './pages/AdminDashboard';
 import SalePage from './pages/SalePage';
 import BrandStoryPage from './pages/BrandStoryPage';
 import ScrollToTop from './components/ScrollToTop';
+import { bootstrapLocalDbOnce } from './lib/bootstrapLocalDb';
+import { isRemoteStoreEnabled } from './lib/storeConfig';
 
 export default function App() {
+  useEffect(() => {
+    void bootstrapLocalDbOnce();
+  }, []);
+
+  useEffect(() => {
+    if (!isRemoteStoreEnabled()) return;
+    document.documentElement.dataset.storeMode = 'remote';
+  }, []);
+
   return (
     <AuthProvider>
       <CartProvider>

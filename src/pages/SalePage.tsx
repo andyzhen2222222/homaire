@@ -5,6 +5,9 @@ import { Tag, Zap, Percent, ArrowRight, Clock, ShoppingCart } from 'lucide-react
 import { useMemo } from 'react';
 import { useCart } from '../components/CartContext';
 import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { ProductListImage } from '../components/ProductListImage';
+import { PRODUCT_LIST_IMAGE_ASPECT_CLASS } from '../lib/productImages';
+import { formatEurPrice } from '../lib/storePrice';
 
 const SALE_GRID_TITLE_MAX = 56;
 
@@ -81,11 +84,11 @@ export default function SalePage() {
               className="group"
             >
               <Link to={`/product/${product.id}`}>
-                <div className="aspect-[4/5] bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray transition-all shadow-sm rounded-[2rem]">
-                  <img 
-                    src={product.images[0]} 
-                    alt={listTitle} 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                <div className={`${PRODUCT_LIST_IMAGE_ASPECT_CLASS} bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray transition-all shadow-sm rounded-[2rem]`}>
+                  <ProductListImage
+                    product={product}
+                    alt={listTitle}
+                    className="group-hover:scale-110 transition-transform duration-700"
                   />
                   
                   {/* Sale Badges */}
@@ -114,8 +117,8 @@ export default function SalePage() {
                 <div className="px-2">
                   <h3 className="text-base font-brand font-bold uppercase tracking-tight mb-2 text-brand-navy group-hover:text-brand-beige transition-colors line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
                   <div className="flex items-center gap-4">
-                    <span className="text-xl font-bold text-brand-beige">€ {(product.discountPrice || product.price).toLocaleString()}</span>
-                    <span className="text-xs font-bold text-brand-navy/20 line-through">€ {product.price.toLocaleString()}</span>
+                    <span className="text-xl font-bold text-brand-beige">{formatEurPrice(product.discountPrice || product.price)}</span>
+                    <span className="text-xs font-bold text-brand-navy/20 line-through">{formatEurPrice(product.price)}</span>
                   </div>
                 </div>
               </Link>

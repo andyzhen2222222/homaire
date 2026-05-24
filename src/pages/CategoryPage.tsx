@@ -5,11 +5,14 @@ import { SlidersHorizontal, X, ShoppingCart } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useCart } from '../components/CartContext';
 import { DEFAULT_CATEGORY_HEROES } from '../data/categoryHeroes';
-import { useStoreConfig } from '../hooks/useAdminData';
+import { useStoreConfig, useCategories } from '../hooks/useAdminData';
 import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { ProductListImage } from '../components/ProductListImage';
+import { PRODUCT_LIST_IMAGE_ASPECT_CLASS, PRODUCT_LIST_IMAGE_PLACEHOLDER } from '../lib/productImages';
+import { formatEurPrice } from '../lib/storePrice';
+import { displaySubCategoryLabel, getCategoryEnglishName, displayCategoryName } from '../lib/categoryLabels';
 
-const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000';
+const CATEGORY_HERO_FALLBACK = PRODUCT_LIST_IMAGE_PLACEHOLDER;
 
 /** 分类栅格 `text-base`，与首页卡片一致 */
 const CATEGORY_GRID_TITLE_MAX = 56;
@@ -20,6 +23,7 @@ export default function CategoryPage() {
   const subCategory = searchParams.get('sub');
   const { addItem } = useCart();
   const { config } = useStoreConfig();
+  const { categories } = useCategories();
 
   const { products, loading } = useProducts(slug);
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'newest'>('featured');
@@ -65,16 +69,21 @@ export default function CategoryPage() {
               .replace(/-/g, ' ')
               .replace(/\b\w/g, (c) => c.toUpperCase()),
             subtitle: 'Discover pieces curated for modern living.',
-            image: FALLBACK_IMAGE,
+            image: CATEGORY_HERO_FALLBACK,
           };
+    const enSlugTitle = slug ? getCategoryEnglishName(slug, categories) : '';
+    const catRow = slug ? categories.find((c) => c.slug === slug) : undefined;
+    const dbTitle = catRow ? displayCategoryName(catRow) : enSlugTitle;
     const ov = slug ? config?.categoryHeroes?.[slug] : undefined;
-    if (!ov) return base;
+    if (!ov) {
+      return dbTitle ? { ...base, title: dbTitle } : base;
+    }
     return {
-      title: (ov.title && ov.title.trim()) || base.title,
+      title: (ov.title && ov.title.trim()) || dbTitle || base.title,
       subtitle: (ov.subtitle && ov.subtitle.trim()) || base.subtitle,
       image: (ov.image && ov.image.trim()) || base.image,
     };
-  }, [slug, config?.categoryHeroes]);
+  }, [slug, config?.categoryHeroes, categories]);
 
   if (loading) {
     return (
@@ -102,7 +111,7 @@ export default function CategoryPage() {
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
             onError={(e) => {
-              e.currentTarget.src = FALLBACK_IMAGE;
+              e.currentTarget.src = CATEGORY_HERO_FALLBACK;
             }}
           />
         </div>
@@ -183,7 +192,7 @@ export default function CategoryPage() {
                       }}
                       className={`flex items-center justify-between px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${selectedSubs.includes(sub) ? 'bg-brand-navy text-white shadow-xl -translate-y-1' : 'bg-white text-brand-navy/50 hover:bg-white hover:text-brand-navy border border-transparent hover:border-brand-beige'}`}
                     >
-                      <span>{sub}</span>
+                      <span>{displaySubCategoryLabel(sub)}</span>
                       {selectedSubs.includes(sub) && <X className="w-3 h-3" />}
                     </button>
                   ))}
@@ -204,7 +213,7 @@ export default function CategoryPage() {
                   />
                   <div className="flex justify-between text-[10px] font-bold text-brand-navy/40">
                     <span>€ 0</span>
-                    <span className="text-brand-beige">Max € {priceRange[1]}</span>
+                    <span className="text-brand-beige">Max {formatEurPrice(priceRange[1])}</span>
                   </div>
                 </div>
               </div>
@@ -237,11 +246,11 @@ export default function CategoryPage() {
                 className="group"
               >
                 <Link to={`/product/${product.id}`}>
-                  <div className="aspect-[4/5] bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray shadow-sm rounded-2xl">
-                    <img 
-                      src={product.images[0]} 
-                      alt={listTitle} 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                  <div className={`${PRODUCT_LIST_IMAGE_ASPECT_CLASS} bg-brand-gray overflow-hidden mb-6 relative border border-brand-gray shadow-sm rounded-2xl`}>
+                    <ProductListImage
+                      product={product}
+                      alt={listTitle}
+                      className="group-hover:scale-110 transition-transform duration-700"
                     />
                 <div className="absolute top-4 left-4">
                   {product.onSale && (
@@ -265,11 +274,11 @@ export default function CategoryPage() {
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <h3 className="text-base font-bold uppercase tracking-tight mb-1 text-brand-navy group-hover:text-brand-beige transition-colors leading-tight font-brand line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
-                      <p className="text-brand-navy/30 text-[9px] uppercase font-bold tracking-widest">Series: {product.subCategory || 'Classic'}</p>
+                      <p className="text-brand-navy/30 text-[9px] uppercase font-bold tracking-widest">Series: {displaySubCategoryLabel(product.subCategory)}</p>
                     </div>
                     <div className="text-right">
                       <span className={`block text-lg font-bold font-brand ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'}`}>
-                        € {product.price.toLocaleString()}
+                        {formatEurPrice(product.price)}
                       </span>
                     </div>
                   </div>

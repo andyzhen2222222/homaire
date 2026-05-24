@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return {
           ok: false,
           error:
-            '管理员口令不正确。未在项目 .env 设置 VITE_LOCAL_ADMIN_PASSWORD 时，请使用默认口令 admin；若已设置，请与之一致。',
+            'Incorrect admin password. If VITE_LOCAL_ADMIN_PASSWORD is not set in .env, use the default password admin; otherwise use the value from your .env file.',
         };
       }
 
@@ -122,13 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const login = useCallback(async () => {
-    const emailInput = window.prompt('登录邮箱（数据保存在本机浏览器）', 'demo@local.test');
+    const emailInput = window.prompt('Sign-in email (stored in this browser)', 'demo@local.test');
     if (emailInput === null) return;
     const email = emailInput.trim() || 'demo@local.test';
-    const nameInput = window.prompt('显示名称（可留空则用邮箱前缀）', email.split('@')[0] || 'User');
+    const nameInput = window.prompt('Display name (optional)', email.split('@')[0] || 'User');
     if (nameInput === null) return;
     const displayName = nameInput.trim() || email.split('@')[0] || 'User';
-    const pwdInput = window.prompt('管理员口令（留空=仅顾客；默认 admin）', '');
+    const pwdInput = window.prompt('Admin password (leave empty for shopper only; default admin)', '');
     if (pwdInput === null) return;
     commitSession(email, displayName, pwdInput);
   }, [commitSession]);

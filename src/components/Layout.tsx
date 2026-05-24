@@ -1,11 +1,11 @@
 import { Link, Outlet } from 'react-router-dom';
-import { ShoppingCart, User, Search, Menu, X, LayoutDashboard, ChevronDown, Truck, MapPin, Wrench, ShieldCheck } from 'lucide-react';
+import { ShoppingCart, User, Search, Menu, X, LayoutDashboard, Truck, MapPin, Wrench, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
-import { useStoreConfig } from '../hooks/useAdminData';
+import { useStoreConfig, useCategories } from '../hooks/useAdminData';
 import { HOMAIRE_SLOGAN } from '../content/homaireBrandStory';
 import {
   GLOBAL_SERVICE_STRIP_TITLE_DEFAULT,
@@ -14,6 +14,8 @@ import {
   GLOBAL_SERVICE_INSTALLATION_DEFAULT,
   GLOBAL_SERVICE_WARRANTY_DEFAULT,
 } from '../lib/globalServiceStripDefaults';
+import { buildStorefrontNavMenu } from '../lib/categoryNavTree';
+import { CategoryMegaMenuDesktop, CategoryMobileNavTree } from './CategoryMegaMenu';
 
 const DEF_TOP1 = 'Free Shipping & Returns';
 const DEF_TOP2 = '365-Day Worry-Free Warranty';
@@ -34,59 +36,13 @@ export default function Layout() {
   const { user, profile, login } = useAuth();
   const { itemCount } = useCart();
   const { config } = useStoreConfig();
+  const { categories } = useCategories();
+  const navDepartments = buildStorefrontNavMenu(categories, config?.navDepartments);
 
   useEffect(() => {
     const t = (config?.siteTitle || config?.storeName || 'Homaire').trim();
     document.title = t;
   }, [config?.siteTitle, config?.storeName]);
-
-  const navLinks = [
-    {
-      name: '沙发',
-      href: '/category/sofas',
-      sublinks: [
-        { name: '布艺沙发', href: '/category/sofas?sub=fabric' },
-        { name: '皮革沙发', href: '/category/sofas?sub=leather' },
-        { name: '转角沙发', href: '/category/sofas?sub=corner' },
-        { name: '沙发床', href: '/category/sofas?sub=sofabed' },
-      ],
-    },
-    {
-      name: '床',
-      href: '/category/beds',
-      sublinks: [
-        { name: '实木床', href: '/category/beds?sub=solidwood' },
-        { name: '软包床', href: '/category/beds?sub=upholstered' },
-        { name: '极简床架', href: '/category/beds?sub=minimalist' },
-      ],
-    },
-    {
-      name: '桌子',
-      href: '/category/tables',
-      sublinks: [
-        { name: '餐桌', href: '/category/tables?sub=dining' },
-        { name: '茶几', href: '/category/tables?sub=coffee' },
-        { name: '边几', href: '/category/tables?sub=side' },
-      ],
-    },
-    {
-      name: '椅子',
-      href: '/category/chairs',
-      sublinks: [
-        { name: '餐椅', href: '/category/chairs?sub=dining' },
-        { name: '扶手椅', href: '/category/chairs?sub=armchair' },
-        { name: '休闲椅', href: '/category/chairs?sub=lounge' },
-      ],
-    },
-    {
-      name: '户外',
-      href: '/category/garden',
-      sublinks: [
-        { name: '户外沙发', href: '/category/garden?sub=sofa' },
-        { name: '庭院套装', href: '/category/garden?sub=set' },
-      ],
-    },
-  ];
 
   return (
     <div className="min-h-screen flex flex-col bg-brand-bg">
@@ -179,48 +135,7 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Secondary Nav */}
-      <nav className="hidden lg:flex border-b border-brand-border bg-brand-bg sticky top-20 z-40">
-        <div className="max-w-7xl mx-auto w-full px-4 py-1 flex gap-8 text-[13px] font-semibold tracking-wide">
-          <Link to="/category/sale" className="text-brand-accent hover:opacity-80 transition-opacity py-3">限时特惠</Link>
-          <Link
-            to="/brand-story"
-            className="border-b border-transparent py-3 text-brand-navy/80 transition-colors hover:border-brand-beige/40 hover:text-brand-beige"
-          >
-            品牌故事
-          </Link>
-          {navLinks.map(link => (
-            <div key={link.href} className="relative group/nav py-3">
-              <Link 
-                to={link.href} 
-                className="text-brand-navy hover:text-brand-beige transition-colors flex items-center gap-1"
-                id={`nav-link-${link.href.replace(/[^a-z0-9]+/gi, '-')}`}
-              >
-                {link.name}
-                <ChevronDown className="w-3 h-3 opacity-30 group-hover/nav:rotate-180 transition-transform" />
-              </Link>
-              
-              {/* Dropdown Menu */}
-              <div className="absolute top-full left-0 bg-white border border-brand-gray shadow-2xl p-6 min-w-[200px] opacity-0 translate-y-4 pointer-events-none group-hover/nav:opacity-100 group-hover/nav:translate-y-0 group-hover/nav:pointer-events-auto transition-all duration-300 z-50 rounded-b-xl overflow-hidden">
-                <div className="absolute left-0 top-0 w-1 h-full bg-brand-beige/20" />
-                <div className="flex flex-col gap-4">
-                  {link.sublinks?.map(sub => (
-                    <Link 
-                      key={sub.name} 
-                      to={sub.href} 
-                      className="text-[12px] text-brand-navy/60 hover:text-brand-navy transition-colors whitespace-nowrap"
-                    >
-                      {sub.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-          <Link to="/category/lighting" className="text-brand-navy hover:text-brand-beige transition-colors py-3">灯具</Link>
-          <Link to="/category/accessories" className="text-brand-navy hover:text-brand-beige transition-colors py-3">家居配件</Link>
-        </div>
-      </nav>
+      <CategoryMegaMenuDesktop departments={navDepartments} />
 
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
@@ -253,39 +168,16 @@ export default function Layout() {
                   onClick={() => setIsMenuOpen(false)}
                   className="hover:text-brand-beige py-2 border-b border-brand-gray text-brand-accent"
                 >
-                  限时特惠
+                  Sale
                 </Link>
                 <Link
                   to="/brand-story"
                   onClick={() => setIsMenuOpen(false)}
                   className="hover:text-brand-beige py-2 border-b border-brand-gray"
                 >
-                  品牌故事
+                  Brand Story
                 </Link>
-                {navLinks.map(link => (
-                  <Link 
-                    key={link.href} 
-                    to={link.href} 
-                    onClick={() => setIsMenuOpen(false)}
-                    className="hover:text-brand-beige py-2 border-b border-brand-gray"
-                  >
-                    {link.name}
-                  </Link>
-                ))}
-                <Link
-                  to="/category/lighting"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="hover:text-brand-beige py-2 border-b border-brand-gray"
-                >
-                  灯具
-                </Link>
-                <Link
-                  to="/category/accessories"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="hover:text-brand-beige py-2 border-b border-brand-gray"
-                >
-                  家居配件
-                </Link>
+                <CategoryMobileNavTree departments={navDepartments} onNavigate={() => setIsMenuOpen(false)} />
               </nav>
               <div className="mt-20">
                 <p className="text-[10px] font-bold text-brand-sage uppercase tracking-[0.2em] mb-4">{HOMAIRE_SLOGAN}</p>
@@ -391,7 +283,7 @@ export default function Layout() {
             <div>
               <h4 className="font-brand font-bold uppercase tracking-widest text-[10px] mb-8 text-brand-beige">About</h4>
               <ul className="space-y-4 text-[11px] font-medium uppercase tracking-widest text-white/50">
-                <li><Link to="/brand-story" className="hover:text-brand-beige transition-colors">品牌故事</Link></li>
+                <li><Link to="/brand-story" className="hover:text-brand-beige transition-colors">Brand Story</Link></li>
                 <li><Link to="/" className="hover:text-brand-beige transition-colors">Craftsmanship</Link></li>
                 <li><Link to="/admin" className="hover:text-brand-beige transition-colors">Admin Access</Link></li>
                 <li><Link to="/" className="hover:text-brand-beige transition-colors">Sustainability</Link></li>

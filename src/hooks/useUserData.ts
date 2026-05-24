@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Order } from '../types';
 import { useAuth } from '../components/AuthContext';
 import { getLocalOrdersForUser, subscribeLocalDb } from '../lib/localDb';
+import { isRemoteStoreEnabled } from '../lib/storeConfig';
+import { fetchUserOrdersFromServer } from '../lib/remoteStore';
 
 export function useUserOrders() {
   const { user } = useAuth();
@@ -15,12 +17,18 @@ export function useUserOrders() {
       return;
     }
 
-    const sync = () => {
-      setOrders(getLocalOrdersForUser(user.uid));
+    const sync = async () => {
+      if (isRemoteStoreEnabled()) {
+        setOrders(await fetchUserOrdersFromServer(user.uid));
+      } else {
+        setOrders(getLocalOrdersForUser(user.uid));
+      }
       setLoading(false);
     };
-    sync();
-    return subscribeLocalDb(sync);
+    void sync();
+    return subscribeLocalDb(() => {
+      void sync();
+    });
   }, [user]);
 
   return { orders, loading };

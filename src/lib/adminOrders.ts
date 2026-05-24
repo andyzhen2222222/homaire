@@ -1,6 +1,8 @@
 import type { OrderStatus } from '../types';
 import type { LocalOrder } from './localDb';
 import { getLocalOrdersSorted, localAddOrder } from './localDb';
+import { isRemoteStoreEnabled } from './storeConfig';
+import { createOrderOnServer } from './remoteStore';
 
 export type OrderStatusFilter = OrderStatus | 'all';
 
@@ -10,14 +12,14 @@ export interface OrderListQuery {
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: '待处理',
-  processing: '处理中',
-  shipped: '已发货',
-  delivered: '已签收',
-  cancelled: '已取消',
+  pending: 'Pending',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
 };
 
-export const SHIP_CARRIER_OPTIONS = ['DHL', 'FedEx', 'UPS', '顺丰', '中通', '其他'] as const;
+export const SHIP_CARRIER_OPTIONS = ['DHL', 'FedEx', 'UPS', 'SF Express', 'ZTO', 'Other'] as const;
 
 export function formatOrderId(id: string): string {
   return `#${id.slice(-8).toUpperCase()}`;
@@ -25,7 +27,7 @@ export function formatOrderId(id: string): string {
 
 export function formatOrderDate(createdAt?: { seconds?: number }): string {
   if (typeof createdAt?.seconds !== 'number') return '—';
-  return new Date(createdAt.seconds * 1000).toLocaleString('zh-CN', {
+  return new Date(createdAt.seconds * 1000).toLocaleString('en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -76,19 +78,19 @@ export function countOrdersByStatus(orders: LocalOrder[]): Record<OrderStatus, n
 }
 
 /** 无订单时生成一条演示数据，便于后台联调 */
-export function seedDemoOrderIfEmpty(userId = 'demo_user'): string | null {
+export async function seedDemoOrderIfEmpty(userId = 'demo_user'): Promise<string | null> {
   if (getLocalOrdersSorted().length > 0) return null;
 
-  return localAddOrder({
+  const payload = {
     userId,
-    status: 'pending',
+    status: 'pending' as const,
     total: 1299,
     items: [
       {
         productId: 'demo_product',
         quantity: 1,
         price: 1299,
-        name: '演示商品 · Modular Sofa',
+        name: 'Demo · Modular Sofa',
       },
     ],
     shippingAddress: {
@@ -100,5 +102,9 @@ export function seedDemoOrderIfEmpty(userId = 'demo_user'): string | null {
       zip: '200000',
       country: 'CN',
     },
-  });
+  };
+  if (isRemoteStoreEnabled()) {
+    return await createOrderOnServer(payload);
+  }
+  return localAddOrder(payload);
 }

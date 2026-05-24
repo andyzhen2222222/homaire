@@ -17,6 +17,17 @@ import { useStoreConfig } from '../hooks/useAdminData';
 import { SiteSettingsForm } from '../components/admin/SiteSettingsForm';
 import { HomeDecorEditor } from '../components/admin/HomeDecorEditor';
 import { OrderManagement } from '../components/admin/OrderManagement';
+import {
+  CategoriesFeishuSyncPanel,
+  CategoryFeishuFormFields,
+} from '../components/admin/CategoryFeishuSync';
+import { NavDepartmentsEditor } from '../components/admin/NavDepartmentsEditor';
+import { CategoryTreePanel } from '../components/admin/CategoryTreePanel';
+import { useFeishuAutoSync } from '../hooks/useFeishuAutoSync';
+import {
+  DEFAULT_FEISHU_SYNC_INTERVAL_MINUTES,
+  normalizeFeishuSyncIntervalMinutes,
+} from '../lib/feishuCategorySync';
 import { fileToDataUrl } from '../lib/fileToDataUrl';
 import {
   processImportedProductRows,
@@ -26,6 +37,8 @@ import {
   PRODUCT_IMPORT_NAME_MAX,
 } from '../lib/productImport';
 import { enrichImportedProductsWithShortTitles } from '../lib/storeShortTitle';
+import { formatEurPrice, formatEurPriceCompact, roundStorePrice } from '../lib/storePrice';
+import { displayCategoryName } from '../lib/categoryLabels';
 import {
   buildCategorySelectOptions,
   getCategoryLevel,
@@ -67,7 +80,7 @@ function productListSortKey(p: Product): number {
 }
 
 export default function AdminDashboard() {
-  const { products, usingDemoFallback } = useProducts();
+  const { products } = useProducts();
   /** 后台列表：最新创建/更新的商品在前，导入数据会出现在表格上方 */
   const inventoryProducts = useMemo(
     () => [...products].sort((a, b) => productListSortKey(b) - productListSortKey(a)),
@@ -93,6 +106,50 @@ export default function AdminDashboard() {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryModalParentId, setCategoryModalParentId] = useState<string | null>(null);
+  const [feishuRowSyncId, setFeishuRowSyncId] = useState<string | null>(null);
+
+  const runCategoryFeishuSync = (cat: Category) => {
+    const url = (cat.feishuBitableUrl || '').trim();
+    if (!url) {
+      window.alert('Edit this category and add a Feishu Bitable URL first.');
+      return;
+    }
+    setFeishuRowSyncId(cat.id);
+    void (async () => {
+      try {
+        const { syncCategoryFromFeishu } = await import('../lib/feishuSyncClient');
+        const { added, removed, rawRowCount } = await syncCategoryFromFeishu(
+          url,
+          cat.slug,
+          categories.map((c) => c.slug),
+        );
+        await updateCategory(cat.id, {
+          feishuLastSyncedAt: new Date().toISOString(),
+          feishuLastSyncCount: added,
+          feishuLastSyncMessage: `OK: ${rawRowCount} rows, ${added} products (${removed} removed)`,
+        });
+        window.alert(`「${cat.name}」synced: ${added} products`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await updateCategory(cat.id, {
+          feishuLastSyncedAt: new Date().toISOString(),
+          feishuLastSyncCount: 0,
+          feishuLastSyncMessage: `Failed: ${msg}`,
+        });
+        window.alert(msg);
+      } finally {
+        setFeishuRowSyncId(null);
+      }
+    })();
+  };
+
+  useFeishuAutoSync(
+    categories,
+    Boolean(profile?.isAdmin && user),
+    async (categoryId, patch) => {
+      await updateCategory(categoryId, patch);
+    }
+  );
 
   const closeCategoryModal = () => {
     setIsAddingCategory(false);
@@ -109,7 +166,7 @@ export default function AdminDashboard() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f0f2f5] text-[#606266]">
-        <p className="text-sm font-medium">正在加载登录状态…</p>
+        <p className="text-sm font-medium">Loading session…</p>
       </div>
     );
   }
@@ -139,11 +196,13 @@ export default function AdminDashboard() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#f0f2f5] px-6 py-16">
         <div className="max-w-md text-center">
-          <h1 className="mb-2 text-xl font-medium text-[#303133]">管理员登录</h1>
+          <h1 className="mb-2 text-xl font-medium text-[#303133]">Admin sign in</h1>
           <p className="text-sm text-[#909399]">
-            本地模式：数据保存在本机浏览器。口令默认 <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>
-            ，可在项目 <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">.env</code> 中设置{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">VITE_LOCAL_ADMIN_PASSWORD</code> 覆盖。
+            Local mode: data is stored in this browser. Default password{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>
+            ; override with{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">VITE_LOCAL_ADMIN_PASSWORD</code> in{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">.env</code>.
           </p>
         </div>
 
@@ -153,7 +212,7 @@ export default function AdminDashboard() {
         >
           <div>
             <label htmlFor="admin-login-email" className={ADMIN_FORM_LABEL}>
-              邮箱
+              Email
             </label>
             <input
               id="admin-login-email"
@@ -167,7 +226,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <label htmlFor="admin-login-name" className={ADMIN_FORM_LABEL}>
-              显示名称（可选）
+              Display name (optional)
             </label>
             <input
               id="admin-login-name"
@@ -175,13 +234,13 @@ export default function AdminDashboard() {
               autoComplete="name"
               value={adminDisplayName}
               onChange={(e) => setAdminDisplayName(e.target.value)}
-              placeholder={adminEmail.includes('@') ? adminEmail.split('@')[0] : '管理员'}
+              placeholder={adminEmail.includes('@') ? adminEmail.split('@')[0] : 'Admin'}
               className={ADMIN_FORM_CONTROL}
             />
           </div>
           <div>
             <label htmlFor="admin-login-password" className={ADMIN_FORM_LABEL}>
-              管理员口令
+              Admin password
             </label>
             <input
               id="admin-login-password"
@@ -203,12 +262,12 @@ export default function AdminDashboard() {
             disabled={adminLoginSubmitting}
             className={`${ADMIN_BTN_PRIMARY} w-full`}
           >
-            {adminLoginSubmitting ? '登录中…' : '登录后台'}
+            {adminLoginSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
         <Link to="/" className="text-sm text-[#909399] hover:text-[#409eff]">
-          返回商店首页
+          Back to store
         </Link>
       </div>
     );
@@ -218,10 +277,10 @@ export default function AdminDashboard() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#f0f2f5] px-6 text-center">
         <div>
-          <h1 className="mb-2 text-xl font-medium text-[#303133]">无访问权限</h1>
+          <h1 className="mb-2 text-xl font-medium text-[#303133]">Access denied</h1>
           <p className="max-w-md text-sm text-[#909399]">
-            当前账号 <span className="font-medium text-[#606266]">{user.email}</span> 不是管理员会话。请退出后回到本页，在「管理员口令」中填写正确口令（默认{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>）。
+            Account <span className="font-medium text-[#606266]">{user.email}</span> is not an admin session. Sign out, return here, and enter the correct admin password (default{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>).
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -230,10 +289,10 @@ export default function AdminDashboard() {
             onClick={() => void logout()}
             className={`${ADMIN_BTN_DEFAULT} text-sm`}
           >
-            退出登录
+            Sign out
           </button>
           <Link to="/" className="text-sm text-[#409eff] hover:underline">
-            返回商店首页
+            Back to store
           </Link>
         </div>
       </div>
@@ -244,16 +303,16 @@ export default function AdminDashboard() {
     'products' | 'categories' | 'orders' | 'promotions' | 'homeDecor' | 'settings',
     { title: string; subtitle: string }
   > = {
-    products: { title: '商品管理', subtitle: '库存列表 · 导入 / 新建 · 按更新时间排序' },
-    categories: { title: '分类管理', subtitle: '一级 / 二级 / 三级 · slug 与前台路由' },
-    orders: { title: '订单管理', subtitle: '查询、详情、发货与物流 · 本地数据' },
-    promotions: { title: '营销', subtitle: '活动卡片 · 启用状态' },
-    homeDecor: { title: '首页装修', subtitle: '首页区块与分类磁贴' },
-    settings: { title: '站点设置', subtitle: '站点名、低库存阈值、分类页 Hero 等' },
+    products: { title: 'Products', subtitle: 'Inventory · import / create · sorted by updated time' },
+    categories: { title: 'Categories', subtitle: 'Nav departments · 3-level tree · server catalog' },
+    orders: { title: 'Orders', subtitle: 'Search, details, shipping · local data' },
+    promotions: { title: 'Promotions', subtitle: 'Campaign cards · active state' },
+    homeDecor: { title: 'Homepage', subtitle: 'Home sections and category tiles' },
+    settings: { title: 'Site settings', subtitle: 'Store name, stock thresholds, category heroes' },
   };
 
   const stats = [
-    { label: 'Revenue', value: `€ ${totalRevenue.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Revenue', value: formatEurPrice(totalRevenue), icon: <TrendingUp className="w-4 h-4" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Active Orders', value: activeOrdersCount.toString(), icon: <ShoppingBag className="w-4 h-4" />, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Inventory', value: products.length.toString(), icon: <Package className="w-4 h-4" />, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Customers', value: '1.2k', icon: <Users className="w-4 h-4" />, color: 'text-purple-600', bg: 'bg-purple-50' },
@@ -265,18 +324,18 @@ export default function AdminDashboard() {
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-4">
           <Link to="/" className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-sm font-semibold tracking-tight text-white">HOMAIRE</span>
-            <span className="text-[10px] text-slate-400">管理后台</span>
+            <span className="text-[10px] text-slate-400">Admin</span>
           </Link>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {[
-            { id: 'products' as const, label: '商品', sub: 'Inventory', icon: <Package className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'categories' as const, label: '分类', sub: 'Taxonomy', icon: <Layers className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'orders' as const, label: '订单', sub: 'Orders', icon: <ShoppingBag className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'promotions' as const, label: '营销', sub: 'Promo', icon: <Tag className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'homeDecor' as const, label: '首页', sub: 'Home', icon: <LayoutTemplate className="h-4 w-4 shrink-0 opacity-80" /> },
-            { id: 'settings' as const, label: '设置', sub: 'Site', icon: <Settings className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'products' as const, label: 'Products', sub: 'Inventory', icon: <Package className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'categories' as const, label: 'Categories', sub: 'Taxonomy', icon: <Layers className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'orders' as const, label: 'Orders', sub: 'Orders', icon: <ShoppingBag className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'promotions' as const, label: 'Promotions', sub: 'Promo', icon: <Tag className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'homeDecor' as const, label: 'Homepage', sub: 'Home', icon: <LayoutTemplate className="h-4 w-4 shrink-0 opacity-80" /> },
+            { id: 'settings' as const, label: 'Settings', sub: 'Site', icon: <Settings className="h-4 w-4 shrink-0 opacity-80" /> },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -312,7 +371,7 @@ export default function AdminDashboard() {
             onClick={() => void logout()}
             className="mt-2 w-full rounded border border-white/10 px-2 py-1.5 text-center text-[11px] text-slate-400 transition-colors hover:border-white/20 hover:text-white"
           >
-            退出登录
+            Sign out
           </button>
         </div>
       </aside>
@@ -331,7 +390,7 @@ export default function AdminDashboard() {
                 className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-[#1677ff] hover:text-[#1677ff]"
               >
                 <Download className="h-3.5 w-3.5" />
-                批量导入
+                Bulk import
               </button>
             )}
             {(activeTab === 'products' || activeTab === 'promotions' || activeTab === 'categories') && (
@@ -348,14 +407,14 @@ export default function AdminDashboard() {
                 className="inline-flex items-center gap-1.5 rounded bg-[#1677ff] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#4096ff]"
               >
                 <Plus className="h-3.5 w-3.5" />
-                新建
+                New
               </button>
             )}
             <Link
               to="/"
               className="hidden text-xs text-slate-500 hover:text-[#1677ff] sm:inline"
             >
-              返回前台
+              View storefront
             </Link>
           </div>
         </header>
@@ -394,25 +453,73 @@ export default function AdminDashboard() {
                 >
                 {activeTab === 'products' && (
                   <div className="overflow-x-auto">
-                    {usingDemoFallback && (
-                      <div className="mx-3 mt-3 mb-1 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                        <p className="font-semibold text-amber-900">当前为演示商品目录（未写入本地库）</p>
-                        <p className="mt-1 text-amber-900/85 leading-snug">
-                          请使用「批量导入」上传 CSV，或「新建」添加商品。
-                        </p>
+                    <div className="mx-3 mt-3 mb-1 flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      <span>
+                        <strong className="text-slate-900">{products.length}</strong> local products
+                        {products.length === 0
+                          ? ' · After sync:feishu, use Load snapshot on the right'
+                          : ''}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded border border-[#dcdfe6] bg-white px-2 py-1 text-[11px] font-medium text-[#409eff] hover:bg-[#ecf5ff]"
+                          onClick={() => {
+                            void (async () => {
+                              try {
+                                const { reloadFeishuSnapshotFromPublic } = await import(
+                                  '../lib/localDb'
+                                );
+                                const n = await reloadFeishuSnapshotFromPublic();
+                                window.alert(`Loaded ${n} products from deploy snapshot`);
+                              } catch (e) {
+                                window.alert(e instanceof Error ? e.message : String(e));
+                              }
+                            })();
+                          }}
+                        >
+                          Load snapshot
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                          onClick={() => {
+                            void import('../lib/remoteStore').then(async ({ pushCatalogToServer }) => {
+                              try {
+                                const { revision } = await pushCatalogToServer();
+                                window.alert(`Pushed catalog to server (revision ${revision}). All visitors will see updates within ~15s.`);
+                              } catch (e) {
+                                window.alert(e instanceof Error ? e.message : String(e));
+                              }
+                            });
+                          }}
+                        >
+                          Push to server
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                          onClick={() => {
+                            void import('../lib/localDb').then(({ downloadLocalDbSnapshotForDeploy }) => {
+                              downloadLocalDbSnapshotForDeploy();
+                            });
+                          }}
+                        >
+                          Export JSON
+                        </button>
                       </div>
-                    )}
+                    </div>
                     <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
-                      按更新时间排序 · 新导入与新建在最上方
+                      Sorted by updated time · newest imports and creates first
                     </p>
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">商品</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">分类</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">库存</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">价格</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Product</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Category</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Stock</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Price</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -424,17 +531,17 @@ export default function AdminDashboard() {
                                 <span className="line-clamp-2 font-medium leading-snug text-slate-800">{product.name}</span>
                               </div>
                             </td>
-                            <td className="px-3 py-2 text-xs text-slate-600">{product.category}</td>
+                            <td className="px-3 py-2 text-xs text-slate-600">{displayCategoryName(product.category)}</td>
                             <td className="px-3 py-2">
                               <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium tabular-nums ${product.stock < lowStockThreshold ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
                                 {product.stock}
                               </span>
                             </td>
-                            <td className="px-3 py-2 font-medium tabular-nums text-slate-900">€{product.price.toLocaleString()}</td>
+                            <td className="px-3 py-2 font-medium tabular-nums text-slate-900">{formatEurPriceCompact(product.price)}</td>
                             <td className="px-3 py-2 text-right">
                               <div className="flex justify-end gap-1">
-                                <button type="button" title="编辑" onClick={() => setEditingProduct(product)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Edit className="h-4 w-4" /></button>
-                                <button type="button" title="删除" onClick={() => { if(confirm('确定删除该商品？')) deleteProduct(product.id); }} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                                <button type="button" title="Edit" onClick={() => setEditingProduct(product)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Edit className="h-4 w-4" /></button>
+                                <button type="button" title="Delete" onClick={() => { if(confirm('Delete this product?')) deleteProduct(product.id); }} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                               </div>
                             </td>
                           </tr>
@@ -445,112 +552,39 @@ export default function AdminDashboard() {
                 )}
 
                 {activeTab === 'categories' && (
-                  <div className="overflow-x-auto">
-                    <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
-                      最多三级；子级商品的 category 为子 slug 时，父级列表页也会展示。
+                  <div>
+                    <NavDepartmentsEditor
+                      categories={categories}
+                      config={config}
+                      onSave={async (navDepartments) => {
+                        await updateConfig({ navDepartments });
+                      }}
+                    />
+                    <CategoriesFeishuSyncPanel
+                      categories={categories}
+                      allowedCategorySlugs={categories.map((c) => c.slug)}
+                      onUpdateCategory={updateCategory}
+                    />
+                    <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 mb-3">
+                      Up to 3 levels. Product category slugs match leaf nodes; parent category pages include all descendants.
                     </p>
-                    <table className="w-full text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">层级</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">封面</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">名称</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Slug</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">商品数</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {categories.map((cat) => {
-                          const level = getCategoryLevel(cat.id, categories);
-                          const productCount = countProductsInCategorySubtree(cat.slug, categories, inventoryProducts);
-                          const indent = (level - 1) * 14;
-                          const canAddChild = level < 3;
-                          return (
-                            <tr key={cat.id} className="hover:bg-slate-50 transition-colors group">
-                              <td className="px-3 py-2 text-xs tabular-nums text-slate-500">{level} 级</td>
-                              <td className="px-3 py-2">
-                                <img
-                                  src={cat.image}
-                                  alt=""
-                                  className="h-10 w-10 rounded border border-slate-200 bg-slate-100 object-cover"
-                                />
-                              </td>
-                              <td className="px-3 py-2">
-                                <div style={{ paddingLeft: indent }} className="flex min-w-0 items-start gap-1.5">
-                                  {level > 1 ? (
-                                    <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
-                                  ) : (
-                                    <span className="w-3.5 shrink-0" aria-hidden />
-                                  )}
-                                  <div className="min-w-0">
-                                    <span className="block truncate font-medium text-slate-800">{cat.name}</span>
-                                    {cat.description ? (
-                                      <p className="text-[10px] text-brand-navy/40 font-medium mt-1 max-w-xs line-clamp-2">
-                                        {cat.description}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-3 py-2">
-                                <Link
-                                  to={`/category/${cat.slug}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-xs font-medium text-[#1677ff] hover:underline"
-                                >
-                                  /{cat.slug}
-                                </Link>
-                              </td>
-                              <td className="px-3 py-2 text-xs tabular-nums text-slate-600">{productCount}</td>
-                              <td className="px-3 py-2 text-right">
-                                <div className="flex justify-end flex-wrap gap-2">
-                                  {canAddChild ? (
-                                    <button
-                                      type="button"
-                                      title="在此分类下新增子分类"
-                                      onClick={() => {
-                                        setEditingCategory(null);
-                                        setCategoryModalParentId(cat.id);
-                                        setIsAddingCategory(true);
-                                      }}
-                                      className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-[#1677ff] hover:bg-slate-50"
-                                    >
-                                      + 子类
-                                    </button>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingCategory(cat)}
-                                    className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const msg =
-                                        productCount > 0
-                                          ? `该分类（含子树）下约有 ${productCount} 件商品的 category 落在该范围内。删除仅移除后台分类配置，不会自动修改商品字段。确定删除？`
-                                          : '确定删除此分类？';
-                                      if (confirm(msg)) void deleteCategory(cat.id);
-                                    }}
-                                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <CategoryTreePanel
+                      categories={categories}
+                      products={inventoryProducts}
+                      feishuRowSyncId={feishuRowSyncId}
+                      onFeishuSync={runCategoryFeishuSync}
+                      onEdit={(cat) => setEditingCategory(cat)}
+                      onAddChild={(parentId) => {
+                        setEditingCategory(null);
+                        setCategoryModalParentId(parentId);
+                        setIsAddingCategory(true);
+                      }}
+                      onDelete={(id) => void deleteCategory(id)}
+                    />
                   </div>
                 )}
 
-              {activeTab === 'orders' && <OrderManagement />}
+                {activeTab === 'orders' && <OrderManagement />}
 
               {activeTab === 'promotions' && (
                 <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-2 lg:grid-cols-3">
@@ -1057,6 +1091,13 @@ function CategoryForm({
   );
   const [sortOrder, setSortOrder] = useState<number>(initial?.sortOrder ?? 0);
   const [featuredIdsRaw, setFeaturedIdsRaw] = useState(() => (initial?.featuredProductIds ?? []).join(', '));
+  const [feishuBitableUrl, setFeishuBitableUrl] = useState(initial?.feishuBitableUrl ?? '');
+  const [feishuSyncEnabled, setFeishuSyncEnabled] = useState(Boolean(initial?.feishuSyncEnabled));
+  const [feishuSyncIntervalMinutes, setFeishuSyncIntervalMinutes] = useState(
+    normalizeFeishuSyncIntervalMinutes(
+      initial?.feishuSyncIntervalMinutes ?? DEFAULT_FEISHU_SYNC_INTERVAL_MINUTES
+    )
+  );
 
   const forbiddenParentIds = useMemo(() => {
     if (!initial?.id) return new Set<string>();
@@ -1087,6 +1128,13 @@ function CategoryForm({
     setParentId(initial?.parentId ?? defaultParentId ?? null);
     setSortOrder(typeof initial?.sortOrder === 'number' ? initial.sortOrder : 0);
     setFeaturedIdsRaw((initial?.featuredProductIds ?? []).join(', '));
+    setFeishuBitableUrl(initial?.feishuBitableUrl ?? '');
+    setFeishuSyncEnabled(Boolean(initial?.feishuSyncEnabled));
+    setFeishuSyncIntervalMinutes(
+      normalizeFeishuSyncIntervalMinutes(
+        initial?.feishuSyncIntervalMinutes ?? DEFAULT_FEISHU_SYNC_INTERVAL_MINUTES
+      )
+    );
   }, [initial, defaultParentId]);
 
   const productsInSlug = useMemo(() => {
@@ -1107,6 +1155,9 @@ function CategoryForm({
           parentId: parentId || null,
           sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
           featuredProductIds: parseCategoryFeaturedIdsInput(featuredIdsRaw) ?? [],
+          feishuBitableUrl: feishuBitableUrl.trim() || undefined,
+          feishuSyncEnabled: feishuBitableUrl.trim() ? feishuSyncEnabled : false,
+          feishuSyncIntervalMinutes: normalizeFeishuSyncIntervalMinutes(feishuSyncIntervalMinutes),
         });
       }}
       className="space-y-4"
@@ -1260,6 +1311,15 @@ function CategoryForm({
           </div>
         ) : null}
       </div>
+      <CategoryFeishuFormFields
+        feishuBitableUrl={feishuBitableUrl}
+        setFeishuBitableUrl={setFeishuBitableUrl}
+        feishuSyncEnabled={feishuSyncEnabled}
+        setFeishuSyncEnabled={setFeishuSyncEnabled}
+        feishuSyncIntervalMinutes={feishuSyncIntervalMinutes}
+        setFeishuSyncIntervalMinutes={setFeishuSyncIntervalMinutes}
+        categorySlug={slug.trim().toLowerCase()}
+      />
       <button type="submit" className={`${ADMIN_BTN_PRIMARY} w-full`}>
         保存
       </button>
@@ -1285,14 +1345,14 @@ function ProductForm({
   const [newImageUrl, setNewImageUrl] = useState('');
 
   const staticCategoryOptions = [
-    { slug: 'sofas', name: '沙发' },
-    { slug: 'beds', name: '床' },
-    { slug: 'tables', name: '桌' },
-    { slug: 'chairs', name: '椅' },
-    { slug: 'garden', name: '户外/花园' },
-    { slug: 'lighting', name: '灯具' },
-    { slug: 'storage', name: '收纳' },
-    { slug: 'decor', name: '装饰' },
+    { slug: 'sofas', name: 'Sofas' },
+    { slug: 'beds', name: 'Beds' },
+    { slug: 'tables', name: 'Tables' },
+    { slug: 'chairs', name: 'Chairs' },
+    { slug: 'garden', name: 'Garden' },
+    { slug: 'lighting', name: 'Lighting' },
+    { slug: 'storage', name: 'Storage' },
+    { slug: 'decor', name: 'Decor' },
   ];
   const selectCategoryOptions =
     categoryOptions && categoryOptions.length > 0 ? categoryOptions : staticCategoryOptions;
@@ -1479,7 +1539,9 @@ function ProductForm({
                   required
                   type="number"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                  step={1}
+                  min={0}
+                  onChange={(e) => setFormData({ ...formData, price: roundStorePrice(parseFloat(e.target.value) || 0) })}
                   className={ADMIN_FORM_CONTROL}
                 />
               </div>
@@ -1511,7 +1573,11 @@ function ProductForm({
                   <input
                     type="number"
                     value={formData.discountPrice}
-                    onChange={(e) => setFormData({ ...formData, discountPrice: parseFloat(e.target.value) })}
+                    step={1}
+                    min={0}
+                    onChange={(e) =>
+                      setFormData({ ...formData, discountPrice: roundStorePrice(parseFloat(e.target.value) || 0) })
+                    }
                     className={ADMIN_FORM_CONTROL}
                   />
                 </div>

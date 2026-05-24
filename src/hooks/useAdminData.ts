@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Order, OrderStatus, Promotion, Product, StoreConfig, Category } from '../types';
+import { isRemoteStoreEnabled } from '../lib/storeConfig';
+import { patchOrderOnServer, syncAdminChangeToServer } from '../lib/remoteStore';
 import {
   subscribeLocalDb,
   getLocalOrdersSorted,
@@ -64,6 +66,10 @@ export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' })
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     try {
+      if (isRemoteStoreEnabled()) {
+        await patchOrderOnServer(orderId, { status });
+        return;
+      }
       localUpdateOrderStatus(orderId, status);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
@@ -73,6 +79,10 @@ export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' })
 
   const markProcessing = useCallback(async (orderId: string) => {
     try {
+      if (isRemoteStoreEnabled()) {
+        await patchOrderOnServer(orderId, { status: 'processing' });
+        return;
+      }
       localMarkOrderProcessing(orderId);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
@@ -83,6 +93,15 @@ export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' })
   const shipOrder = useCallback(
     async (orderId: string, payload: { carrier: string; trackingNumber: string }) => {
       try {
+        if (isRemoteStoreEnabled()) {
+          await patchOrderOnServer(orderId, {
+            status: 'shipped',
+            carrier: payload.carrier.trim(),
+            trackingNumber: payload.trackingNumber.trim(),
+            shippedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+          });
+          return;
+        }
         localShipOrder(orderId, payload);
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
@@ -94,6 +113,10 @@ export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' })
 
   const saveAdminNote = useCallback(async (orderId: string, note: string) => {
     try {
+      if (isRemoteStoreEnabled()) {
+        await patchOrderOnServer(orderId, { adminNote: note.trim() || undefined });
+        return;
+      }
       localUpdateOrderAdminNote(orderId, note);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
@@ -102,7 +125,7 @@ export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' })
   }, []);
 
   const seedDemo = useCallback(() => {
-    seedDemoOrderIfEmpty();
+    void seedDemoOrderIfEmpty();
   }, []);
 
   return {
@@ -138,6 +161,7 @@ export function usePromotions() {
   const togglePromotion = async (id: string, active: boolean) => {
     try {
       localTogglePromotion(id, active);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `promotions/${id}`);
     }
@@ -146,6 +170,7 @@ export function usePromotions() {
   const deletePromotion = async (id: string) => {
     try {
       localDeletePromotion(id);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `promotions/${id}`);
     }
@@ -154,6 +179,7 @@ export function usePromotions() {
   const addPromotion = async (promo: Omit<Promotion, 'id' | 'createdAt'>) => {
     try {
       localAddPromotion(promo);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'promotions');
     }
@@ -178,6 +204,7 @@ export function useCategories() {
   const addCategory = async (cat: Omit<Category, 'id'>) => {
     try {
       localAddCategory(cat);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'categories');
     }
@@ -186,6 +213,7 @@ export function useCategories() {
   const updateCategory = async (id: string, updates: Partial<Omit<Category, 'id'>>) => {
     try {
       localUpdateCategory(id, updates);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `categories/${id}`);
     }
@@ -194,6 +222,7 @@ export function useCategories() {
   const deleteCategory = async (id: string) => {
     try {
       localDeleteCategory(id);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `categories/${id}`);
     }
@@ -206,6 +235,7 @@ export function useAdminActions() {
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
     try {
       localAddProduct(product);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'products');
     }
@@ -214,6 +244,7 @@ export function useAdminActions() {
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     try {
       localUpdateProduct(id, updates);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
     }
@@ -222,12 +253,22 @@ export function useAdminActions() {
   const deleteProduct = async (id: string) => {
     try {
       localDeleteProduct(id);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
   };
 
   const bulkAddProducts = async (products: Omit<Product, 'id' | 'createdAt'>[]) => {
+    if (isRemoteStoreEnabled()) {
+      try {
+        localBulkAddProducts(products);
+        await syncAdminChangeToServer();
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'products');
+      }
+      return;
+    }
     const BATCH = 35;
     let written = 0;
     for (let i = 0; i < products.length; i += BATCH) {
@@ -243,7 +284,7 @@ export function useAdminActions() {
           (error instanceof Error && /QuotaExceeded|quota|NS_ERROR_DOM_QUOTA_REACHED/i.test(error.message));
         if (isQuota && written > 0) {
           throw new Error(
-            `已成功导入 ${written} 条；浏览器 localStorage 已满，无法继续写入剩余 ${products.length - written} 条。请删除部分本地商品后再分批导入。`
+            `Imported ${written} items; browser storage is full. Remove some products and import in smaller batches.`
           );
         }
         handleFirestoreError(error, OperationType.WRITE, 'products');
@@ -270,6 +311,7 @@ export function useStoreConfig() {
   const updateConfig = async (updates: Partial<StoreConfig>) => {
     try {
       localUpdateConfig(updates);
+      await syncAdminChangeToServer();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'config/global');
     }

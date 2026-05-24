@@ -1,4 +1,6 @@
 import type { Category, HomeCategoryTile, HomeHeroSpotlightItem, HomeReviewItem, StoreConfig } from '../types';
+import { GIGAB2B_LEVEL1_IMAGES, getGigab2bCategoriesFlat } from '../data/gigab2bCategoryData';
+import { getFeaturedHomeCategories } from './categoryLabels';
 
 function normalizeFeaturedProductIds(v: unknown): string[] | undefined {
   if (v == null) return undefined;
@@ -35,30 +37,30 @@ type LabelSlugRule = { slug: string; re: RegExp };
  */
 const HOME_CATEGORY_LABEL_TO_SLUG_RULES: LabelSlugRule[] = [
   { slug: 'sale', re: /\b(sale|rabatt|angebot|aktion|outlet|markdown)\b/i },
-  { slug: 'sofas', re: /sofa|couch|polster|ecksofa|wohnlandschaft|modular/i },
-  { slug: 'beds', re: /bed|bett|matratze|kopfteil|schlafzimmer|schlafcouch/i },
-  { slug: 'tables', re: /table|tisch|esstisch|schreibtisch|dining|desk|sideboard/i },
-  { slug: 'chairs', re: /chair|stuhl|stühle|hocker|stool|esszimmerstuhl|dining chair|armchair/i },
-  { slug: 'garden', re: /garden|outdoor|patio|garten|balkon|terrace|terrasse/i },
+  { slug: 'furniture', re: /furniture|sofa|couch|bed|table|chair|office|living room/i },
+  { slug: 'garden-outdoor', re: /garden|outdoor|patio|garten|balkon|terrace|terrasse/i },
   { slug: 'lighting', re: /light|lamp|leuchte|pendelleuchte|beleuchtung|chandelier/i },
-  { slug: 'storage', re: /storage|shelf|schrank|regal|cabinet|kommode|wardrobe|kleiderschrank/i },
-  { slug: 'decor', re: /decor|deko|vase|mirror|spiegel|rug|teppich|cushion|textile|kunst|wall art/i },
+  { slug: 'kitchen', re: /kitchen|refrigerator|appliance|cooktop|faucet/i },
+  { slug: 'bath-faucets', re: /bath|shower|toilet|vanity|faucet|sauna/i },
+  { slug: 'pet-supplies', re: /pet|dog|cat|grooming/i },
+  { slug: 'fitness-sports', re: /fitness|gym|treadmill|bike|sport/i },
+  { slug: 'household-supplies-decor', re: /decor|deko|vase|mirror|rug|teppich|household/i },
 ];
 
-export const DEFAULT_HOME_CATEGORY_TILES: HomeCategoryTile[] = [
-  { name: 'Sofas', slug: 'sofas', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-sofas.png` },
-  { name: 'Beds', slug: 'beds', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-beds.png` },
-  { name: 'Tables', slug: 'tables', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-tables.png` },
-  { name: 'Chairs', slug: 'chairs', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-chairs.png` },
-  { name: 'Garden', slug: 'garden', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-garden.png` },
-  { name: 'Lighting', slug: 'lighting', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-lighting.png` },
-  { name: 'Storage', slug: 'storage', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-storage.png` },
-  { name: 'Decor', slug: 'decor', image: `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-decor.png` },
-];
+function buildDefaultHomeCategoryTiles(): HomeCategoryTile[] {
+  return getFeaturedHomeCategories(getGigab2bCategoriesFlat()).map((c) => ({
+    name: c.name,
+    slug: c.slug,
+    image: c.image || GIGAB2B_LEVEL1_IMAGES[c.slug] || `${HOME_CATEGORY_TILE_ASSET_BASE}/homaire-cat-sofas.png`,
+  }));
+}
 
-const IMAGE_BY_CANONICAL_SLUG: Record<string, string> = Object.fromEntries(
-  DEFAULT_HOME_CATEGORY_TILES.map((t) => [t.slug.toLowerCase(), t.image]),
-);
+export const DEFAULT_HOME_CATEGORY_TILES: HomeCategoryTile[] = buildDefaultHomeCategoryTiles();
+
+const IMAGE_BY_CANONICAL_SLUG: Record<string, string> = {
+  ...Object.fromEntries(DEFAULT_HOME_CATEGORY_TILES.map((t) => [t.slug.toLowerCase(), t.image])),
+  ...GIGAB2B_LEVEL1_IMAGES,
+};
 
 function guessCanonicalSlugFromHomeCategoryLabel(slug: string, name: string): string {
   const s = slug.trim().toLowerCase();

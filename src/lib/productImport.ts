@@ -4,6 +4,8 @@ import {
   tryResolveImportCategoryColumn,
 } from './inferProductCategorySlug';
 import { abbreviateStoreTitle, STORE_SHORT_TITLE_MAX_CHARS } from './storeShortTitle';
+import { collectProductImageUrlsFromRow, normalizeProductImageList } from './productImages';
+import { normalizeProductPrices, roundStorePrice } from './storePrice';
 
 /** 批量导入未提供图片时的占位图，避免列表/详情报错 */
 export const IMPORT_FALLBACK_IMAGE =
@@ -132,6 +134,10 @@ export function normalizeParsedTableRow(row: unknown): Record<string, unknown> {
 
 /** 大健云仓 / GIGA 导出：存在「产品型号」列即按此表映射 */
 export function isDjianCloudSourceRow(item: unknown): item is Record<string, unknown> {
+  if (item != null && typeof item === 'object') {
+    const row = item as Record<string, unknown>;
+    if (String(row['标题-英语'] ?? row['标题-法语'] ?? '').trim()) return false;
+  }
   return (
     item != null &&
     typeof item === 'object' &&
@@ -148,28 +154,13 @@ function firstFiniteNumber(...vals: unknown[]): number {
     if (s === '') continue;
     const n = Number(s);
     if (!Number.isFinite(n) || n < 0) continue;
-    return n;
+    return roundStorePrice(n);
   }
   return 0;
 }
 
 function collectDjianImageUrls(item: Record<string, unknown>): string[] {
-  const urls: string[] = [];
-  const seen = new Set<string>();
-  const push = (raw: unknown) => {
-    const t = String(raw ?? '').trim();
-    if (!t || (!t.startsWith('http://') && !t.startsWith('https://'))) return;
-    if (seen.has(t)) return;
-    seen.add(t);
-    urls.push(t);
-  };
-  for (let i = 1; i <= 8; i += 1) {
-    push(item[`图片${i}`]);
-  }
-  for (let i = 1; i <= 8; i += 1) {
-    push(item[`原图片${i}`]);
-  }
-  return urls;
+  return collectProductImageUrlsFromRow(item);
 }
 
 function escapeHtmlText(s: string): string {
@@ -224,13 +215,16 @@ function longDescToDetailHtmlSmart(longDesc: string): string {
 
 /** 单条商品体积上限，保证大量导入时 localStorage 可写入 */
 function clampProductForLocalDb(p: Omit<Product, 'id' | 'createdAt'>): Omit<Product, 'id' | 'createdAt'> {
-  const images = (p.images?.length ? p.images : [IMPORT_FALLBACK_IMAGE]).slice(0, 5).map((u) => u.slice(0, 1800));
+  const normalized = normalizeProductImageList(p.images);
+  const images = (normalized.length ? normalized : [IMPORT_FALLBACK_IMAGE])
+    .slice(0, 5)
+    .map((u) => u.slice(0, 1800));
   const features = (p.features ?? []).slice(0, 8).map((f) => f.slice(0, 280));
   const nameNorm = (p.name || '').trim().slice(0, PRODUCT_IMPORT_NAME_MAX);
   const stRaw = ((p.shortTitle || '').trim() || nameNorm).trim();
   const stAbbr = abbreviateStoreTitle(stRaw);
   const shortTitle = stAbbr && stAbbr !== nameNorm ? stAbbr : undefined;
-  return {
+  return normalizeProductPrices({
     ...p,
     shortTitle,
     name: nameNorm,
@@ -241,7 +235,7 @@ function clampProductForLocalDb(p: Omit<Product, 'id' | 'createdAt'>): Omit<Prod
     subCategory: (p.subCategory || '').slice(0, 100),
     videoUrl: (p.videoUrl || '').slice(0, 1500),
     manualUrl: (p.manualUrl || '').slice(0, 1500),
-  };
+  });
 }
 
 function pickFirstCellString(item: Record<string, unknown>, keys: string[]): string {
@@ -315,6 +309,85 @@ export function splitImportedFeaturesString(s: string): string[] {
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+function parseStockCell(v: unknown): number {
+  const s = String(v ?? '')
+    .trim()
+    .replace(/\s/g, '');
+  if (!s) return 0;
+  if (/^\d+,\d+$/.test(s)) {
+    const n = Number(s.replace(',', '.'));
+    if (Number.isFinite(n)) return Math.max(0, Math.floor(n));
+  }
+  return Math.max(0, Math.floor(firstFiniteNumber(v)));
+}
+
+/** 飞书多维表（标题-英语 / 法国平台售价 等列） */
+export function isFeishuExportRow(item: unknown): item is Record<string, unknown> {
+  if (item == null || typeof item !== 'object') return false;
+  const row = item as Record<string, unknown>;
+  return String(row['标题-英语'] ?? row['标题-法语'] ?? '').trim().length > 0;
+}
+
+export function mapFeishuExportRowToImportShape(
+  item: Record<string, unknown>,
+  options?: ProductImportParseOptions
+): Record<string, unknown> {
+  const name = String(
+    item['标题-英语'] ?? item['产品型号'] ?? item.SKU ?? item['SKU-RBL'] ?? ''
+  )
+    .trim()
+    .slice(0, PRODUCT_IMPORT_NAME_MAX);
+  const price = firstFiniteNumber(
+    item['法国平台售价'],
+    item['法国平台调价最低价'],
+    item['单价-人民币'],
+    item['德国最新单价']
+  );
+  const stock = parseStockCell(item['可售库存'] ?? item['线上库存']);
+
+  const shortEn = [1, 2, 3, 4, 5]
+    .map((i) => String(item[`简短描述${i}-英文`] ?? item[`简短描述${i}`] ?? '').trim())
+    .filter(Boolean);
+  const description = shortEn.slice(0, 2).join(' ').trim() || name.slice(0, 280);
+  const featuresJoined = shortEn.slice(2).join('\n');
+
+  const longDesc = String(item['长描述'] ?? '').trim();
+  const detailHtml = longDesc ? longDescToDetailHtmlSmart(longDesc) : '';
+
+  const urls = collectDjianImageUrls(item).slice(0, 6);
+  const images = urls.join(',');
+
+  const manualRaw = String(item['说明书'] ?? '').trim();
+  const manualMatch = manualRaw.match(/https?:\/\/[^\s)\]]+/);
+  const manualUrl = manualMatch ? manualMatch[0] : manualRaw;
+
+  const defaultCat = (options?.defaultCategory ?? 'sofas').trim().toLowerCase() || 'sofas';
+  const category =
+    options?.inferCategoryFromRowData === false
+      ? defaultCat
+      : (options?.defaultCategory ?? defaultCat);
+
+  const shortAbbr = abbreviateStoreTitle(name);
+  const shortTitle = shortAbbr && shortAbbr !== name ? shortAbbr : '';
+
+  return {
+    name,
+    shortTitle,
+    price,
+    category,
+    stock,
+    description,
+    detailHtml,
+    images,
+    features: featuresJoined,
+    subCategory: String(item['材质'] ?? '').trim(),
+    manualUrl,
+    videoUrl: '',
+    onSale: false,
+    discountPrice: 0,
+  };
 }
 
 /** 将大健云仓一行转为内部导入字段（与标准 CSV 列语义一致） */
@@ -395,9 +468,11 @@ export function processImportedProductRows(
     .map((row) => normalizeParsedTableRow(row))
     .filter((row) => Object.keys(row).length > 0);
   const mapped = rows.map((raw: any) => {
-    const item = isDjianCloudSourceRow(raw)
-      ? { ...raw, ...mapDjianCloudRowToImportShape(raw, options) }
-      : raw;
+    const item = isFeishuExportRow(raw)
+      ? { ...raw, ...mapFeishuExportRowToImportShape(raw, options) }
+      : isDjianCloudSourceRow(raw)
+        ? { ...raw, ...mapDjianCloudRowToImportShape(raw, options) }
+        : raw;
 
     let images: string[] = [];
     if (typeof item.images === 'string') {
@@ -435,7 +510,7 @@ export function processImportedProductRows(
     return {
       name: nameTrimmed,
       ...(shortTitle ? { shortTitle } : {}),
-      price: Number(item.price ?? item.Price ?? 0),
+      price: roundStorePrice(item.price ?? item.Price ?? 0),
       category,
       stock: Number(item.stock ?? item.Stock ?? 0),
       description: String(item.description ?? item.Description ?? '').trim(),
@@ -446,7 +521,7 @@ export function processImportedProductRows(
       videoUrl: String(item.videoUrl ?? item.VideoUrl ?? item.video ?? item.Video ?? '').trim(),
       manualUrl: String(item.manualUrl ?? item.ManualUrl ?? item.manual ?? item.Manual ?? '').trim(),
       onSale: parseImportedBool(item.onSale ?? item.OnSale ?? false),
-      discountPrice: Number(item.discountPrice ?? item.DiscountPrice ?? 0),
+      discountPrice: roundStorePrice(item.discountPrice ?? item.DiscountPrice ?? 0),
     };
   });
 

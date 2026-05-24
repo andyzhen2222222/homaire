@@ -179,10 +179,10 @@ export function SiteSettingsForm({
       className={ADM_FORM_WRAP}
     >
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>店铺与运营</h3>
+        <h3 className={ADM_CARD_TITLE}>Store & operations</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className={ADM_LABEL}>店铺名称</label>
+            <label className={ADM_LABEL}>Store name</label>
             <input
               type="text"
               value={formData.storeName || ''}
@@ -191,7 +191,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>浏览器标签标题</label>
+            <label className={ADM_LABEL}>Browser tab title</label>
             <input
               type="text"
               value={formData.siteTitle || ''}
@@ -200,7 +200,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>货币代码</label>
+            <label className={ADM_LABEL}>Currency code</label>
             <input
               type="text"
               value={formData.currency || ''}
@@ -209,7 +209,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>联系邮箱</label>
+            <label className={ADM_LABEL}>Contact email</label>
             <input
               type="email"
               value={formData.contactEmail || ''}
@@ -218,7 +218,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>低库存阈值</label>
+            <label className={ADM_LABEL}>Low stock threshold</label>
             <input
               type="number"
               value={formData.lowStockThreshold ?? 10}
@@ -227,7 +227,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>免运费门槛（与店铺货币一致）</label>
+            <label className={ADM_LABEL}>Free shipping threshold (store currency)</label>
             <input
               type="number"
               min={1}
@@ -241,10 +241,10 @@ export function SiteSettingsForm({
               }
               className={ADM_INPUT}
             />
-            <p className={ADM_HINT}>购物车 / 商品页：小计严格大于该金额则不加基础运费。</p>
+            <p className={ADM_HINT}>Cart / product page: subtotal above this amount skips flat shipping.</p>
           </div>
           <div>
-            <label className={ADM_LABEL}>基础运费（未达免运门槛时）</label>
+            <label className={ADM_LABEL}>Flat shipping fee (below threshold)</label>
             <input
               type="number"
               min={0}
@@ -268,12 +268,12 @@ export function SiteSettingsForm({
               className="h-4 w-4 rounded border-[#dcdfe6] text-[#409eff] focus:ring-[#c6e2ff]"
             />
             <label htmlFor="maint" className="cursor-pointer text-sm text-[#606266]">
-              维护模式（前台可显示维护提示）
+              Maintenance mode (show notice on storefront)
             </label>
           </div>
         </div>
         <div>
-          <label className={ADM_LABEL}>配送政策</label>
+          <label className={ADM_LABEL}>Shipping policy</label>
           <textarea
             rows={4}
             value={formData.shippingPolicy || ''}
@@ -282,7 +282,7 @@ export function SiteSettingsForm({
           />
         </div>
         <div>
-          <label className={ADM_LABEL}>退换货政策</label>
+          <label className={ADM_LABEL}>Returns policy</label>
           <textarea
             rows={4}
             value={formData.returnPolicy || ''}
@@ -293,7 +293,7 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>商品详情 · 库存与运费</h3>
+        <h3 className={ADM_CARD_TITLE}>Product detail · stock & shipping</h3>
         <p className={ADM_SECTION_DESC}>
           对应 <code className="rounded border border-[#ebeef5] bg-[#fafafa] px-1.5 py-0.5 font-mono text-[11px] text-[#606266]">/product/:id</code>{' '}
           价格区域卡片文案。低库存仍使用上方「低库存阈值」；运费数字使用「免运费门槛」与「基础运费」。脚注可使用占位符{' '}
@@ -302,7 +302,7 @@ export function SiteSettingsForm({
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className={ADM_LABEL}>库存标题</label>
+            <label className={ADM_LABEL}>Stock label</label>
             <input
               type="text"
               value={formData.productDetailStockLabel || ''}
@@ -311,7 +311,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>运费标题</label>
+            <label className={ADM_LABEL}>Shipping label</label>
             <input
               type="text"
               value={formData.productDetailShippingLabel || ''}
@@ -320,7 +320,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>已达免运时的说明行</label>
+            <label className={ADM_LABEL}>Free shipping line</label>
             <input
               type="text"
               value={formData.productDetailShippingFreeLabel || ''}
@@ -329,7 +329,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>低库存提示</label>
+            <label className={ADM_LABEL}>Low stock hint</label>
             <input
               type="text"
               value={formData.productDetailLowStockHint || ''}
@@ -338,7 +338,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>无货提示</label>
+            <label className={ADM_LABEL}>Out of stock hint</label>
             <input
               type="text"
               value={formData.productDetailOutOfStockHint || ''}
@@ -348,7 +348,7 @@ export function SiteSettingsForm({
           </div>
         </div>
         <div>
-          <label className={ADM_LABEL}>运费脚注（模板）</label>
+          <label className={ADM_LABEL}>Shipping footnote (template)</label>
           <textarea
             rows={3}
             value={formData.productDetailShippingFootnote || ''}
@@ -360,7 +360,7 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>顶部公告栏</h3>
+        <h3 className={ADM_CARD_TITLE}>Top announcement bar</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {(['topBarLine1', 'topBarLine2', 'topBarLine3'] as const).map((key) => (
             <div key={key}>
@@ -376,7 +376,7 @@ export function SiteSettingsForm({
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className={ADM_LABEL}>帮助入口文案</label>
+            <label className={ADM_LABEL}>Help link label</label>
             <input
               type="text"
               value={formData.topBarHelpText || ''}
@@ -385,7 +385,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>语言 / 地区角标</label>
+            <label className={ADM_LABEL}>Locale badge</label>
             <input
               type="text"
               value={formData.topBarLocaleText || ''}
@@ -397,12 +397,12 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>全站服务条（页脚上方）</h3>
+        <h3 className={ADM_CARD_TITLE}>Global service strip (above footer)</h3>
         <p className={ADM_SECTION_DESC}>
           全页深色页脚上方展示：配送时效、覆盖范围、安装与保修。留空并保存后可配合重置使用内置默认。
         </p>
         <div>
-          <label className={ADM_LABEL}>区块标题</label>
+          <label className={ADM_LABEL}>Section title</label>
           <input
             type="text"
             value={formData.globalServiceStripTitle || ''}
@@ -412,7 +412,7 @@ export function SiteSettingsForm({
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className={ADM_LABEL}>配送时效</label>
+            <label className={ADM_LABEL}>Delivery time</label>
             <textarea
               rows={4}
               value={formData.globalServiceDeliveryTime || ''}
@@ -421,7 +421,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>配送范围</label>
+            <label className={ADM_LABEL}>Delivery area</label>
             <textarea
               rows={4}
               value={formData.globalServiceDeliveryArea || ''}
@@ -430,7 +430,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>安装说明</label>
+            <label className={ADM_LABEL}>Installation</label>
             <textarea
               rows={4}
               value={formData.globalServiceInstallation || ''}
@@ -439,7 +439,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>保修说明</label>
+            <label className={ADM_LABEL}>Warranty</label>
             <textarea
               rows={4}
               value={formData.globalServiceWarranty || ''}
@@ -451,9 +451,9 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>页脚与订阅</h3>
+        <h3 className={ADM_CARD_TITLE}>Footer & newsletter</h3>
         <div>
-          <label className={ADM_LABEL}>页脚介绍段落</label>
+          <label className={ADM_LABEL}>Footer intro</label>
           <textarea
             rows={4}
             value={formData.footerIntro || ''}
@@ -463,7 +463,7 @@ export function SiteSettingsForm({
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className={ADM_LABEL}>版权行</label>
+            <label className={ADM_LABEL}>Copyright line</label>
             <input
               type="text"
               value={formData.footerCopyright || ''}
@@ -472,7 +472,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>标语行</label>
+            <label className={ADM_LABEL}>Tagline</label>
             <input
               type="text"
               value={formData.footerSloganLine || ''}
@@ -483,7 +483,7 @@ export function SiteSettingsForm({
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className={ADM_LABEL}>订阅区标题</label>
+            <label className={ADM_LABEL}>Newsletter title</label>
             <input
               type="text"
               value={formData.newsletterTitle || ''}
@@ -492,7 +492,7 @@ export function SiteSettingsForm({
             />
           </div>
           <div>
-            <label className={ADM_LABEL}>订阅按钮文案</label>
+            <label className={ADM_LABEL}>Newsletter button</label>
             <input
               type="text"
               value={formData.newsletterCtaLabel || ''}
@@ -502,7 +502,7 @@ export function SiteSettingsForm({
           </div>
         </div>
         <div>
-          <label className={ADM_LABEL}>订阅区说明</label>
+          <label className={ADM_LABEL}>Newsletter description</label>
           <textarea
             rows={2}
             value={formData.newsletterSubcopy || ''}
@@ -511,7 +511,7 @@ export function SiteSettingsForm({
           />
         </div>
         <div>
-          <label className={ADM_LABEL}>邮箱占位符</label>
+          <label className={ADM_LABEL}>Email placeholder</label>
           <input
             type="text"
             value={formData.newsletterPlaceholder || ''}
@@ -522,12 +522,12 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>首页信任条（4 项）</h3>
+        <h3 className={ADM_CARD_TITLE}>Home trust bar (4 items)</h3>
         <p className={ADM_HINT}>iconPath：SVG 的 d 路径；留空使用默认图标。</p>
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className={`${ADM_SUBCARD} grid grid-cols-1 gap-3 md:grid-cols-3`}>
             <div>
-              <label className={ADM_LABEL_COMPACT}>标题 {i + 1}</label>
+              <label className={ADM_LABEL_COMPACT}>Title {i + 1}</label>
               <input
                 type="text"
                 value={formData.homeTrustItems?.[i]?.title || ''}
@@ -536,7 +536,7 @@ export function SiteSettingsForm({
               />
             </div>
             <div>
-              <label className={ADM_LABEL_COMPACT}>副标题 {i + 1}</label>
+              <label className={ADM_LABEL_COMPACT}>Subtitle {i + 1}</label>
               <input
                 type="text"
                 value={formData.homeTrustItems?.[i]?.sub || ''}
@@ -558,7 +558,7 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>首页评价与宣言</h3>
+        <h3 className={ADM_CARD_TITLE}>Home reviews & manifesto</h3>
         <div className="grid grid-cols-1 gap-4">
           {(
             [
@@ -621,7 +621,7 @@ export function SiteSettingsForm({
                 />
               </div>
               <div>
-                <label className={ADM_LABEL_COMPACT}>副标题 {i + 1}</label>
+                <label className={ADM_LABEL_COMPACT}>Subtitle {i + 1}</label>
                 <input
                   type="text"
                   value={formData.homeReviewsItems?.[i]?.subtitle || ''}
@@ -664,28 +664,28 @@ export function SiteSettingsForm({
       </section>
 
       <section className={`${ADM_CARD} space-y-4`}>
-        <h3 className={ADM_CARD_TITLE}>分类页横幅</h3>
+        <h3 className={ADM_CARD_TITLE}>Category page heroes</h3>
         <div className="max-h-[480px] space-y-4 overflow-y-auto pr-1">
           {categorySlugs.map((slug) => (
             <div key={slug} className={`${ADM_SUBCARD} space-y-2`}>
               <p className="text-xs font-medium text-[#303133]">{slug}</p>
               <input
                 type="text"
-                placeholder="标题"
+                placeholder="Title"
                 value={formData.categoryHeroes?.[slug]?.title || ''}
                 onChange={(e) => updateHero(slug, 'title', e.target.value)}
                 className={ADM_INPUT}
               />
               <input
                 type="text"
-                placeholder="副标题"
+                placeholder="Subtitle"
                 value={formData.categoryHeroes?.[slug]?.subtitle || ''}
                 onChange={(e) => updateHero(slug, 'subtitle', e.target.value)}
                 className={ADM_INPUT}
               />
               <input
                 type="text"
-                placeholder="图片 URL"
+                placeholder="Image URL"
                 value={formData.categoryHeroes?.[slug]?.image || ''}
                 onChange={(e) => updateHero(slug, 'image', e.target.value)}
                 className={`${ADM_INPUT} font-mono text-xs`}
@@ -697,7 +697,7 @@ export function SiteSettingsForm({
 
       <div className="flex justify-end border-t border-[#ebeef5] pt-4">
         <button type="submit" className={ADM_BTN_PRIMARY}>
-          保存站点配置
+          Save site settings
         </button>
       </div>
     </form>

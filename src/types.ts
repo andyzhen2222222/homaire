@@ -18,6 +18,10 @@ export interface Product {
   features?: string[];
   /** 参与首页「该品类」楼层：与分类 / 首页装修中的主推 id 列表合并，填满剩余位 */
   featuredOnHome?: boolean;
+  /** 由飞书多维表同步写入 */
+  syncSource?: 'feishu';
+  /** 飞书 record_id，用于同分类再次同步时替换 */
+  feishuRecordId?: string;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -34,6 +38,18 @@ export interface Category {
   sortOrder?: number;
   /** 首页该 slug 品类楼层主推商品 id（顺序优先）；与首页装修、商品勾选合并 */
   featuredProductIds?: string[];
+  /** 飞书多维表格链接（须为 /base/ 编辑页完整 URL，分享视图链接可能无法同步） */
+  feishuBitableUrl?: string;
+  /** 是否启用定时从飞书同步到本分类 */
+  feishuSyncEnabled?: boolean;
+  /** 定时同步间隔（分钟），默认 120 */
+  feishuSyncIntervalMinutes?: number;
+  /** 上次同步完成时间 ISO 字符串 */
+  feishuLastSyncedAt?: string;
+  /** 上次同步条数 */
+  feishuLastSyncCount?: number;
+  /** 上次同步错误或成功摘要 */
+  feishuLastSyncMessage?: string;
 }
 
 export interface UserProfile {
@@ -155,6 +171,8 @@ export interface StoreConfig {
   shippingPolicy?: string;
   returnPolicy?: string;
   maintenanceMode?: boolean;
+  /** ISO 时间：后台「Export for deploy」写入，仅作部署记录 */
+  catalogSnapshotExportedAt?: string;
 
   /** 浏览器标签标题（不含后缀时可与 storeName 相同） */
   siteTitle?: string;
@@ -232,4 +250,19 @@ export interface StoreConfig {
 
   /** 覆盖各分类页横幅：key 为 slug，如 sofas、lighting */
   categoryHeroes?: Record<string, CategoryHeroEntry>;
+
+  /** 顶部导航部门（归集多个 L1 分类，存于服务端 catalog.config） */
+  navDepartments?: NavDepartment[];
+}
+
+/**  storefront 导航部门：归集 GIGAB2B 一级分类，减少顶栏拥挤 */
+export interface NavDepartment {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  /** 归属该部门的 L1 分类 id 列表（来自 categories 表） */
+  categoryIds: string[];
+  /** 可选：Mega Menu 右侧展示图 */
+  image?: string;
 }

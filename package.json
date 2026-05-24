@@ -10,7 +10,13 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test:import": "tsx scripts/test-product-import.ts",
-    "import:djian": "tsx scripts/import-djian-sofa-csv.ts"
+    "import:djian": "tsx scripts/import-djian-sofa-csv.ts",
+    "sync:feishu": "tsx scripts/sync-feishu-bitable.ts",
+    "publish:snapshot": "tsx scripts/publish-db-snapshot.ts",
+    "generate:categories": "node scripts/generate-gigab2b-categories.mjs",
+    "migrate:catalog-categories": "tsx scripts/migrate-catalog-categories.ts",
+    "migrate:server": "tsx scripts/migrate-browser-to-server.ts",
+    "start": "tsx server/start.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

@@ -13,6 +13,7 @@ import {
 import { useAdminOrders } from '../../hooks/useAdminData';
 import type { LocalOrder } from '../../lib/localDb';
 import type { OrderStatus } from '../../types';
+import { formatEurPrice, formatEurPriceCompact } from '../../lib/storePrice';
 import {
   ORDER_STATUS_LABELS,
   SHIP_CARRIER_OPTIONS,
@@ -32,12 +33,12 @@ import {
 } from '../../lib/adminVueUi';
 
 const STATUS_TABS: { value: OrderStatusFilter; label: string }[] = [
-  { value: 'all', label: '全部' },
-  { value: 'pending', label: '待处理' },
-  { value: 'processing', label: '处理中' },
-  { value: 'shipped', label: '已发货' },
-  { value: 'delivered', label: '已签收' },
-  { value: 'cancelled', label: '已取消' },
+  { value: 'all', label: 'All' },
+  { value: 'pending', label: ORDER_STATUS_LABELS.pending },
+  { value: 'processing', label: ORDER_STATUS_LABELS.processing },
+  { value: 'shipped', label: ORDER_STATUS_LABELS.shipped },
+  { value: 'delivered', label: ORDER_STATUS_LABELS.delivered },
+  { value: 'cancelled', label: ORDER_STATUS_LABELS.cancelled },
 ];
 
 const STATUS_BADGE: Record<OrderStatus, string> = {
@@ -79,7 +80,7 @@ function OrderDetailPanel({
     <div className="flex h-full flex-col border-l border-[#ebeef5] bg-white">
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#ebeef5] px-5 py-4">
         <div className="min-w-0">
-          <p className="text-xs text-[#909399]">订单详情</p>
+          <p className="text-xs text-[#909399]">Order details</p>
           <h3 className="mt-1 font-mono text-base font-semibold text-[#303133]">
             {formatOrderId(order.id)}
           </h3>
@@ -92,7 +93,7 @@ function OrderDetailPanel({
           type="button"
           onClick={onClose}
           className="rounded-sm border border-[#dcdfe6] p-1.5 text-[#909399] hover:text-[#409eff]"
-          aria-label="关闭"
+          aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
@@ -102,7 +103,7 @@ function OrderDetailPanel({
         <section>
           <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#303133]">
             <MapPin className="h-4 w-4 text-[#409eff]" />
-            收货信息
+            Shipping address
           </h4>
           <div className="space-y-2 rounded-sm border border-[#ebeef5] bg-[#fafafa] p-4 text-sm text-[#606266]">
             <p className="font-medium text-[#303133]">{order.shippingAddress.fullName}</p>
@@ -131,18 +132,18 @@ function OrderDetailPanel({
           <section>
             <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#303133]">
               <Truck className="h-4 w-4 text-[#409eff]" />
-              物流信息
+              Tracking
             </h4>
             <div className="rounded-sm border border-indigo-100 bg-indigo-50/50 p-4 text-sm">
               <p className="text-[#606266]">
-                承运商：<span className="font-medium text-[#303133]">{order.carrier}</span>
+                Carrier: <span className="font-medium text-[#303133]">{order.carrier}</span>
               </p>
               <p className="mt-1 text-[#606266]">
-                运单号：<span className="font-mono font-medium text-[#303133]">{order.trackingNumber}</span>
+                Tracking: <span className="font-mono font-medium text-[#303133]">{order.trackingNumber}</span>
               </p>
               {order.shippedAt && (
                 <p className="mt-1 text-xs text-[#909399]">
-                  发货时间：{formatOrderDate(order.shippedAt)}
+                  Shipped: {formatOrderDate(order.shippedAt)}
                 </p>
               )}
             </div>
@@ -152,7 +153,7 @@ function OrderDetailPanel({
         <section>
           <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-[#303133]">
             <Package className="h-4 w-4 text-[#409eff]" />
-            商品明细
+            Line items
           </h4>
           <ul className="divide-y divide-[#ebeef5] rounded-sm border border-[#ebeef5]">
             {order.items.map((item, idx) => (
@@ -160,44 +161,44 @@ function OrderDetailPanel({
                 <div className="min-w-0">
                   <p className="font-medium text-[#303133] line-clamp-2">{item.name}</p>
                   <p className="mt-0.5 text-xs text-[#909399]">
-                    ×{item.quantity} · €{item.price.toLocaleString()}
+                    ×{item.quantity} · {formatEurPriceCompact(item.price)}
                   </p>
                 </div>
                 <p className="shrink-0 font-medium tabular-nums text-[#303133]">
-                  €{(item.price * item.quantity).toLocaleString()}
+                  {formatEurPriceCompact(item.price * item.quantity)}
                 </p>
               </li>
             ))}
           </ul>
           <p className="mt-3 text-right text-base font-semibold tabular-nums text-[#303133]">
-            合计 €{order.total.toLocaleString()}
+            Total {formatEurPriceCompact(order.total)}
           </p>
         </section>
 
         <section>
-          <label className={ADM_LABEL}>后台备注</label>
+          <label className={ADM_LABEL}>Admin note</label>
           <textarea
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             className={`${ADM_INPUT} min-h-[72px] resize-y`}
-            placeholder="内部备注，客户不可见"
+            placeholder="Internal note — not visible to customer"
           />
           <button
             type="button"
             onClick={() => onSaveNote(noteDraft)}
             className={`${ADM_BTN_DEFAULT} mt-2 text-xs`}
           >
-            保存备注
+            Save note
           </button>
         </section>
 
         <section>
-          <label className={ADM_LABEL}>手动改状态</label>
+          <label className={ADM_LABEL}>Change status</label>
           <select
             value={order.status}
             onChange={(e) => onStatusChange(e.target.value as OrderStatus)}
             className={ADM_INPUT}
-            aria-label="订单状态"
+            aria-label="Order status"
           >
             {(Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((s) => (
               <option key={s} value={s}>
@@ -205,20 +206,20 @@ function OrderDetailPanel({
               </option>
             ))}
           </select>
-          <p className={ADM_HINT}>发货请使用下方「确认发货」，会自动写入物流单号。</p>
+          <p className={ADM_HINT}>Use “Confirm shipment” below to record carrier and tracking.</p>
         </section>
       </div>
 
       <div className="flex shrink-0 flex-wrap gap-2 border-t border-[#ebeef5] bg-[#fafafa] p-4">
         {canMarkProcessing(order.status) && (
           <button type="button" onClick={onMarkProcessing} className={ADM_BTN_DEFAULT}>
-            开始处理
+            Mark processing
           </button>
         )}
         {canShipOrder(order.status) && (
           <button type="button" onClick={onOpenShip} className={ADM_BTN_PRIMARY}>
             <Truck className="mr-1.5 inline h-4 w-4" />
-            确认发货
+            Confirm shipment
           </button>
         )}
       </div>
@@ -241,7 +242,7 @@ function ShipOrderModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const resolvedCarrier = carrier === '其他' ? customCarrier.trim() : carrier;
+  const resolvedCarrier = carrier === 'Other' ? customCarrier.trim() : carrier;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -251,7 +252,7 @@ function ShipOrderModal({
       await onSubmit({ carrier: resolvedCarrier, trackingNumber });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发货失败');
+      setError(err instanceof Error ? err.message : 'Shipment failed');
     } finally {
       setSubmitting(false);
     }
@@ -259,24 +260,24 @@ function ShipOrderModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-black/45" onClick={onClose} aria-label="关闭" />
+      <button type="button" className="absolute inset-0 bg-black/45" onClick={onClose} aria-label="Close" />
       <form
         onSubmit={handleSubmit}
         className="relative z-10 w-full max-w-md rounded border border-[#dcdfe6] bg-white p-6 shadow-lg"
       >
-        <h3 className="text-base font-medium text-[#303133]">确认发货</h3>
+        <h3 className="text-base font-medium text-[#303133]">Confirm shipment</h3>
         <p className="mt-1 text-xs text-[#909399]">
-          订单 {formatOrderId(order.id)} · {order.shippingAddress.fullName}
+          Order {formatOrderId(order.id)} · {order.shippingAddress.fullName}
         </p>
 
         <div className="mt-5 space-y-4">
           <div>
-            <label className={ADM_LABEL}>物流公司</label>
+            <label className={ADM_LABEL}>Carrier</label>
             <select
               value={carrier}
               onChange={(e) => setCarrier(e.target.value)}
               className={ADM_INPUT}
-              aria-label="物流公司"
+              aria-label="Carrier"
             >
               {SHIP_CARRIER_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -284,12 +285,12 @@ function ShipOrderModal({
                 </option>
               ))}
             </select>
-            {carrier === '其他' && (
+            {carrier === 'Other' && (
               <input
                 type="text"
                 value={customCarrier}
                 onChange={(e) => setCustomCarrier(e.target.value)}
-                placeholder="输入物流公司名称"
+                placeholder="Carrier name"
                 className={`${ADM_INPUT} mt-2`}
                 required
               />
@@ -297,12 +298,12 @@ function ShipOrderModal({
           </div>
 
           <div>
-            <label className={ADM_LABEL}>运单号</label>
+            <label className={ADM_LABEL}>Tracking number</label>
             <input
               type="text"
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
-              placeholder="必填"
+              placeholder="Required"
               className={ADM_INPUT}
               required
             />
@@ -317,10 +318,10 @@ function ShipOrderModal({
 
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onClose} className={ADM_BTN_DEFAULT} disabled={submitting}>
-            取消
+            Cancel
           </button>
           <button type="submit" className={ADM_BTN_PRIMARY} disabled={submitting}>
-            {submitting ? '提交中…' : '确认发货'}
+            {submitting ? 'Submitting…' : 'Confirm shipment'}
           </button>
         </div>
       </form>
@@ -361,7 +362,7 @@ export function OrderManagement() {
     try {
       await fn();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : '操作失败');
+      setActionError(err instanceof Error ? err.message : 'Action failed');
     }
   };
 
@@ -376,7 +377,7 @@ export function OrderManagement() {
               type="search"
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
-              placeholder="订单号 / 姓名 / 邮箱 / 运单号 / 商品名"
+              placeholder="Order ID / name / email / tracking / product"
               className="w-full rounded border border-slate-200 py-1.5 pl-9 pr-3 text-sm outline-none focus:border-[#409eff] focus:ring-1 focus:ring-[#c6e2ff]"
             />
           </div>
@@ -384,7 +385,7 @@ export function OrderManagement() {
             type="submit"
             className="rounded border border-[#409eff] bg-[#409eff] px-3 py-1.5 text-sm text-white hover:bg-[#66b1ff]"
           >
-            搜索
+            Search
           </button>
           <button
             type="button"
@@ -394,7 +395,7 @@ export function OrderManagement() {
             }}
             className="rounded border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-[#409eff] hover:text-[#409eff]"
           >
-            重置
+            Reset
           </button>
         </form>
 
@@ -432,11 +433,11 @@ export function OrderManagement() {
         {/* 列表 */}
         <div className={`min-w-0 flex-1 ${selectedOrder ? 'lg:max-w-[calc(100%-380px)]' : ''}`}>
           {loading ? (
-            <p className="p-8 text-center text-sm text-slate-500">加载订单…</p>
+            <p className="p-8 text-center text-sm text-slate-500">Loading orders…</p>
           ) : orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-4 p-16 text-center">
               <Package className="h-12 w-12 text-slate-300" />
-              <p className="text-sm text-slate-500">暂无订单</p>
+              <p className="text-sm text-slate-500">No orders yet</p>
               {allOrders.length === 0 && (
                 <button
                   type="button"
@@ -444,7 +445,7 @@ export function OrderManagement() {
                   className="inline-flex items-center gap-2 rounded border border-[#409eff] px-4 py-2 text-sm text-[#409eff] hover:bg-[#ecf5ff]"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  生成演示订单
+                  Seed demo order
                 </button>
               )}
             </div>
@@ -453,13 +454,13 @@ export function OrderManagement() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">订单号</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">客户</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">商品</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">金额</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">状态</th>
-                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">下单时间</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">操作</th>
+                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">Order</th>
+                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">Customer</th>
+                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">Items</th>
+                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">Total</th>
+                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">Status</th>
+                    <th className="px-3 py-2 text-xs font-semibold text-slate-600">Placed</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -481,10 +482,10 @@ export function OrderManagement() {
                         <span className="line-clamp-2">
                           {order.items.map((i) => i.name).join('、')}
                         </span>
-                        <span className="text-slate-400"> · {order.items.length} 项</span>
+                        <span className="text-slate-400"> · {order.items.length} items</span>
                       </td>
                       <td className="px-3 py-2 font-medium tabular-nums text-slate-900">
-                        €{order.total.toLocaleString()}
+                        {formatEurPriceCompact(order.total)}
                       </td>
                       <td className="px-3 py-2">
                         <StatusBadge status={order.status} />
@@ -501,7 +502,7 @@ export function OrderManagement() {
                             type="button"
                             onClick={() => setSelectedId(order.id)}
                             className="rounded border border-slate-200 p-1.5 text-slate-600 hover:border-[#409eff] hover:text-[#409eff]"
-                            title="查看详情"
+                            title="View details"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
@@ -510,7 +511,7 @@ export function OrderManagement() {
                               type="button"
                               onClick={() => setShipTarget(order)}
                               className="rounded border border-indigo-200 bg-indigo-50 p-1.5 text-indigo-700 hover:bg-indigo-100"
-                              title="发货"
+                              title="Ship"
                             >
                               <Truck className="h-4 w-4" />
                             </button>

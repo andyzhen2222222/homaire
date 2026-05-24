@@ -14,10 +14,13 @@ import {
 } from '../../lib/homePageDefaults';
 import { HOME_MANIFESTO_DEFAULTS, HOME_MANIFESTO_TAGLINE } from '../../content/homaireBrandStory';
 import heroModelSceneImage from '../../assets/hero-model-scene.png';
-
-const fallbackProductImage = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200&h=1200';
+import { ProductListImage } from '../ProductListImage';
+import { PRODUCT_LIST_IMAGE_ASPECT_CLASS } from '../../lib/productImages';
+import { formatEurPrice, formatEurPriceCompact } from '../../lib/storePrice';
 
 const HERO_IMAGE_FALLBACK = heroModelSceneImage;
+const fallbackProductImage =
+  'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200&h=1200';
 
 function ReviewStars({ rating, compact }: { rating?: number; compact?: boolean }) {
   if (rating == null || rating < 1) return null;
@@ -71,7 +74,6 @@ function FloorProductCard({
   onAddToCart: (p: Product) => void;
 }) {
   const title = displayStoreProductTitle(product, HOME_FLOOR_PRODUCT_TITLE_MAX);
-  const img = product.images?.[0] || fallbackProductImage;
   const hasDeal =
     typeof product.discountPrice === 'number' &&
     product.discountPrice > 0 &&
@@ -86,13 +88,12 @@ function FloorProductCard({
       viewport={{ once: true }}
       className="group min-w-0"
     >
-      <div className="relative mb-3 aspect-[3/4] overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm">
+      <div className={`relative mb-3 ${PRODUCT_LIST_IMAGE_ASPECT_CLASS} overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm`}>
         <Link to={`/product/${product.id}`} className="absolute inset-0 z-0 block">
-          <img
-            src={img}
-            alt=""
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-            referrerPolicy="no-referrer"
+          <ProductListImage
+            product={product}
+            alt={title}
+            className="transition-transform duration-700 group-hover:scale-105"
           />
         </Link>
         {showPromoBadge ? (
@@ -115,10 +116,10 @@ function FloorProductCard({
           {title}
         </h3>
         <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-          <span className="font-brand text-base font-bold tracking-tighter text-brand-navy">€{payPrice.toLocaleString()}</span>
+          <span className="font-brand text-base font-bold tracking-tighter text-brand-navy">{formatEurPriceCompact(payPrice)}</span>
           {hasDeal ? (
             <span className="text-[10px] font-bold uppercase tracking-wide text-brand-navy/35 line-through">
-              €{product.price.toLocaleString()}
+              {formatEurPriceCompact(product.price)}
             </span>
           ) : null}
         </div>
@@ -239,8 +240,6 @@ export function HomeSections({
   );
 
   const featuredProducts = products.slice(0, 8);
-  const productImage = (product: { images?: string[] }) => product.images?.[0] || fallbackProductImage;
-
   const currentHeroSlide = displayBanners[currentBanner];
   const resolvedHeroImageUrl = heroSlideImageFailed
     ? HERO_IMAGE_FALLBACK
@@ -349,7 +348,7 @@ export function HomeSections({
                 <button
                   key={i}
                   type="button"
-                  aria-label={`切换到第 ${i + 1} 张`}
+                  aria-label={`Go to slide ${i + 1}`}
                   onClick={() => setCurrentBanner(i)}
                   className={`h-1 transition-all duration-500 ${currentBanner === i ? 'w-12 bg-brand-beige' : 'w-4 bg-white/30 hover:bg-white/60'}`}
                 />
@@ -718,7 +717,7 @@ export function HomeSections({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {productsLoading ? (
             [1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="aspect-[4/5] bg-brand-gray animate-pulse rounded-[3rem]" />
+              <div key={i} className={`${PRODUCT_LIST_IMAGE_ASPECT_CLASS} bg-brand-gray animate-pulse rounded-[3rem]`} />
             ))
           ) : (
             featuredProducts.map((product, i) => {
@@ -733,11 +732,11 @@ export function HomeSections({
                 className="group"
               >
                 <Link to={`/product/${product.id}`} className="block">
-                  <div className="aspect-[4/5] bg-white overflow-hidden mb-8 shadow-sm border border-brand-border relative group rounded-[3rem]">
-                    <img
-                      src={productImage(product)}
+                  <div className={`${PRODUCT_LIST_IMAGE_ASPECT_CLASS} bg-white overflow-hidden mb-8 shadow-sm border border-brand-border relative group rounded-[3rem]`}>
+                    <ProductListImage
+                      product={product}
                       alt={title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                      className="group-hover:scale-105 transition-transform duration-1000"
                     />
                     {product.onSale && (
                       <div className="absolute top-8 right-8 bg-brand-navy text-white px-5 py-2.5 rounded-full text-[9px] font-bold uppercase tracking-[0.2em] shadow-xl border border-white/20">
@@ -767,11 +766,11 @@ export function HomeSections({
                     </div>
                     <div className="text-right">
                       <span className="text-2xl font-brand font-bold text-brand-navy tracking-tighter">
-                        €{product.price.toLocaleString()}
+                        {formatEurPriceCompact(product.price)}
                       </span>
                       {product.onSale && (
                         <p className="text-[10px] text-brand-navy/20 font-bold line-through">
-                          €{Math.round(product.price * 1.25).toLocaleString()}
+                          {formatEurPriceCompact(product.price * 1.25)}
                         </p>
                       )}
                     </div>

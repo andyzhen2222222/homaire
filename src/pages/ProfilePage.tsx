@@ -5,6 +5,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useUserOrders } from '../hooks/useUserData';
 import { useState } from 'react';
 import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { formatEurPrice } from '../lib/storePrice';
 
 export default function ProfilePage() {
   const { user, profile, loading: authLoading, logout } = useAuth();
@@ -143,10 +144,10 @@ export default function ProfilePage() {
                                   <h4 className="text-base font-brand font-bold uppercase tracking-tight text-brand-navy line-clamp-2 break-words hyphens-auto">
                                     {displayStoreProductTitle({ name: item.name })}
                                   </h4>
-                                  <p className="text-[10px] text-brand-navy/40 font-bold uppercase tracking-[0.2em] mt-1">Qty: {item.quantity} / Unit Price: € {item.price.toLocaleString()}</p>
+                                  <p className="text-[10px] text-brand-navy/40 font-bold uppercase tracking-[0.2em] mt-1">Qty: {item.quantity} / Unit Price: {formatEurPrice(item.price)}</p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-xl font-bold text-brand-navy font-brand">€ {(item.price * item.quantity).toLocaleString()}</p>
+                                  <p className="text-xl font-bold text-brand-navy font-brand">{formatEurPrice(item.price * item.quantity)}</p>
                                 </div>
                               </div>
                             ))}
@@ -167,7 +168,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="bg-brand-navy text-white p-10 rounded-[2.5rem] shadow-3xl text-right border-b-4 border-brand-beige">
                                <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.4em] mb-2">Total Valuation</p>
-                               <p className="text-4xl font-brand font-bold tracking-tighter">€ {order.total.toLocaleString()}</p>
+                               <p className="text-4xl font-brand font-bold tracking-tighter">{formatEurPrice(order.total)}</p>
                             </div>
                           </div>
                         </div>
