@@ -88,10 +88,10 @@ export function titleLeadFromLongText(text: string, maxLen = STORE_SHORT_TITLE_M
   return `${(sp > Math.floor(maxLen * 0.4) ? cut.slice(0, sp) : cut).trimEnd()}…`;
 }
 
-/** 前台展示用主标题：短标题 → 可读 name → 描述/详情首句 → 卖点 → 回退 name */
+/** 前台展示用主标题：短标题 → 可读 name → 描述/详情首句 → 卖点 → 系列回退（不用 SKU） */
 export function resolveStoreProductDisplayTitle(
-  product: Pick<Product, 'name'> &
-    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features'>>,
+  product: Pick<Product, 'name' | 'category'> &
+    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features' | 'subCategory'>>,
   maxChars = STORE_SHORT_TITLE_MAX_CHARS,
 ): string {
   const name = (product.name || '').trim();
@@ -112,17 +112,24 @@ export function resolveStoreProductDisplayTitle(
     if (lead && !isSkuLikeProductCode(lead)) return abbreviateStoreTitle(lead, maxChars);
   }
 
-  const feat = product.features?.map((f) => String(f).trim()).find(Boolean);
+  const feat = product.features?.map((f) => String(f).trim()).find((f) => f && !isSkuLikeProductCode(f));
   if (feat) return abbreviateStoreTitle(feat, maxChars);
 
-  return abbreviateStoreTitle(name || 'Product', maxChars);
+  const fallback = fallbackStoreProductTitleFromMeta(
+    { category: product.category ?? '', subCategory: product.subCategory },
+    undefined,
+  );
+  if (fallback) return abbreviateStoreTitle(fallback, maxChars);
+
+  return abbreviateStoreTitle('Product', maxChars);
 }
 
-/** 列表 / 卡片标题：不用长描述 detailHtml，避免栅格出现整段 Product Story 首句 */
+/** 列表 / 卡片标题：不用长描述 detailHtml，避免栅格出现整段 Product Story 首句；绝不展示 SKU 型号 */
 export function displayStoreProductListTitle(
-  product: Pick<Product, 'name'> &
-    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features'>>,
+  product: Pick<Product, 'name' | 'category'> &
+    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features' | 'subCategory'>>,
   maxChars = STORE_SHORT_TITLE_MAX_CHARS,
+  options?: { categorySlug?: string },
 ): string {
   const name = (product.name || '').trim();
   const short = (product.shortTitle || '').trim();
@@ -136,19 +143,66 @@ export function displayStoreProductListTitle(
     if (lead) return abbreviateStoreTitle(lead, maxChars);
   }
 
-  const feat = product.features?.map((f) => String(f).trim()).find(Boolean);
+  const feat = product.features?.map((f) => String(f).trim()).find((f) => f && !isSkuLikeProductCode(f));
   if (feat) return abbreviateStoreTitle(feat, maxChars);
 
-  return abbreviateStoreTitle(name || 'Product', maxChars);
+  const fallback = fallbackStoreProductTitleFromMeta(product, options?.categorySlug);
+  if (fallback) return abbreviateStoreTitle(fallback, maxChars);
+
+  return abbreviateStoreTitle('Product', maxChars);
+}
+
+const CATEGORY_SINGULAR: Record<string, string> = {
+  tables: 'Table',
+  cabinets: 'Cabinet',
+  sofas: 'Sofa',
+  chairs: 'Chair',
+  bedroom: 'Bedroom Piece',
+  patio: 'Outdoor Piece',
+  decor: 'Decor',
+};
+
+function titleCaseWords(s: string): string {
+  return s
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/** name/shortTitle 仅为 SKU 时，用子系列 + 品类生成可读列表标题 */
+export function fallbackStoreProductTitleFromMeta(
+  product: Pick<Product, 'category'> & Partial<Pick<Product, 'subCategory'>>,
+  categorySlug?: string,
+): string {
+  const slug = (categorySlug || product.category || '').trim().toLowerCase();
+  const kind = CATEGORY_SINGULAR[slug] || titleCaseWords(slug.replace(/-/g, ' ')) || 'Product';
+  const subRaw = (product.subCategory || '').trim();
+  if (subRaw) {
+    const series = titleCaseWords(subRaw.replace(/^series\s*:\s*/i, ''));
+    return series ? `${series} ${kind}` : kind;
+  }
+  return kind;
 }
 
 /** 详情 H1 / 购物车等：允许从 detailHtml 推断标题 */
 export function displayStoreProductTitle(
   product: Pick<Product, 'name'> &
-    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features'>>,
+    Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features' | 'category' | 'subCategory'>>,
   maxChars = STORE_SHORT_TITLE_MAX_CHARS,
 ): string {
-  return resolveStoreProductDisplayTitle(product, maxChars);
+  return resolveStoreProductDisplayTitle(
+    {
+      name: product.name,
+      category: product.category ?? '',
+      shortTitle: product.shortTitle,
+      description: product.description,
+      detailHtml: product.detailHtml,
+      features: product.features,
+      subCategory: product.subCategory,
+    },
+    maxChars,
+  );
 }
 
 /**

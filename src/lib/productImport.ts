@@ -351,9 +351,15 @@ export function resolveImportedProductName(item: Record<string, unknown>): strin
     if (lead && !isSkuLikeProductCode(lead)) return lead.slice(0, PRODUCT_IMPORT_NAME_MAX);
   }
 
-  if (titleFirst) return titleFirst.slice(0, PRODUCT_IMPORT_NAME_MAX);
-  if (model) return model.slice(0, PRODUCT_IMPORT_NAME_MAX);
-  return pickFirstCellString(item, ['name', 'Name']).slice(0, PRODUCT_IMPORT_NAME_MAX);
+  if (titleFirst && !isSkuLikeProductCode(titleFirst)) {
+    return titleFirst.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+  const skuCode = pickFirstCellString(item, ['SKU', 'SKU-RBL', 'sku']);
+  if (skuCode && !isSkuLikeProductCode(skuCode)) {
+    return skuCode.slice(0, PRODUCT_IMPORT_NAME_MAX);
+  }
+
+  return pickFirstCellString(item, ['name', 'Name']).slice(0, PRODUCT_IMPORT_NAME_MAX) || 'Product';
 }
 
 /** 前台售价：法国平台售价为主价；若有更低调价最低价则作促销价 */

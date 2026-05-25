@@ -13,6 +13,7 @@ import {
   maxSubtreeDepthFrom,
   wouldCreatingParentCycle,
 } from './categoryTree';
+import { isSkuLikeProductCode } from './storeShortTitle';
 
 export const LOCAL_STORAGE_DB_KEY = 'homaire_local_db_v1';
 const DB_KEY = LOCAL_STORAGE_DB_KEY;
@@ -234,16 +235,42 @@ export async function tryAutoLoadFeishuSnapshot(): Promise<number> {
   if (!json) return getLocalProducts().length;
 
   let snapCount = 0;
+  let parsed: { products?: unknown[]; config?: { catalogSnapshotExportedAt?: string } } = {};
   try {
-    const parsed = JSON.parse(json) as { products?: unknown[] };
+    parsed = JSON.parse(json) as { products?: unknown[]; config?: { catalogSnapshotExportedAt?: string } };
     snapCount = Array.isArray(parsed.products) ? parsed.products.length : 0;
   } catch {
     return getLocalProducts().length;
   }
 
   const existing = getLocalProducts().length;
-  // 本地已有旧库、但部署快照更大时（例如新增 tables 飞书同步）自动升级
-  if (existing === 0 || snapCount > existing) {
+  const snapExportedAt =
+    parsed.config && typeof parsed.config === 'object'
+      ? String(parsed.config.catalogSnapshotExportedAt ?? '').trim()
+      : '';
+  const localExportedAt = String(load().config?.catalogSnapshotExportedAt ?? '').trim();
+
+  const snapProducts = Array.isArray(parsed.products)
+    ? (parsed.products as Array<{ name?: string }>)
+    : [];
+  const localProducts = getLocalProducts();
+  const localSkuNames = localProducts.filter((p) =>
+    isSkuLikeProductCode(String(p.name ?? '').trim()),
+  ).length;
+  const snapSkuNames = snapProducts.filter((p) =>
+    isSkuLikeProductCode(String(p.name ?? '').trim()),
+  ).length;
+  const staleSkuHeavy =
+    snapCount > 0 &&
+    localSkuNames > Math.max(snapSkuNames + 5, Math.floor(snapCount * 0.01));
+
+  // 本地无库、快照更大、快照版本更新、或本地大量 SKU 标题而快照已修正时自动覆盖
+  if (
+    existing === 0 ||
+    snapCount > existing ||
+    (snapExportedAt && snapExportedAt !== localExportedAt) ||
+    staleSkuHeavy
+  ) {
     return replaceLocalDbFromSnapshotJson(json);
   }
   return existing;

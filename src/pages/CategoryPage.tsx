@@ -8,7 +8,7 @@ import { DEFAULT_CATEGORY_HEROES } from '../data/categoryHeroes';
 import { useStoreConfig, useCategories } from '../hooks/useAdminData';
 import { displayStoreProductListTitle } from '../lib/storeShortTitle';
 import { getProductDetailOutOfStockHint, getProductDetailLowStockHint } from '../lib/storeShipping';
-import { getProductStockQty, isProductLowStock, isProductOutOfStock } from '../lib/productStock';
+import { getProductStockQty, getProductPayPrice, isProductLowStock, isProductOutOfStock } from '../lib/productStock';
 import { ProductListImage } from '../components/ProductListImage';
 import { PRODUCT_LIST_IMAGE_ASPECT_CLASS, PRODUCT_LIST_IMAGE_PLACEHOLDER } from '../lib/productImages';
 import { formatEurPrice } from '../lib/storePrice';
@@ -55,10 +55,12 @@ export default function CategoryPage() {
     if (selectedSubs.length > 0) {
       result = result.filter((p) => p.subCategory && selectedSubs.includes(p.subCategory));
     }
-    result = result.filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    result = result.filter(
+      (p) => getProductPayPrice(p) >= priceRange[0] && getProductPayPrice(p) <= priceRange[1]
+    );
 
-    if (sortBy === 'price-asc') result.sort((a, b) => a.price - b.price);
-    else if (sortBy === 'price-desc') result.sort((a, b) => b.price - a.price);
+    if (sortBy === 'price-asc') result.sort((a, b) => getProductPayPrice(a) - getProductPayPrice(b));
+    else if (sortBy === 'price-desc') result.sort((a, b) => getProductPayPrice(b) - getProductPayPrice(a));
 
     // 无库存商品仍展示，仅排到同排序规则下的后面
     result.sort((a, b) => {
@@ -258,7 +260,9 @@ export default function CategoryPage() {
         <div className="flex-grow">
           <div className={`grid grid-cols-1 sm:grid-cols-2 ${showFilters ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-x-8 gap-y-20`}>
             {sortedProducts.map((product, i) => {
-              const listTitle = displayStoreProductListTitle(product, CATEGORY_GRID_TITLE_MAX);
+              const listTitle = displayStoreProductListTitle(product, CATEGORY_GRID_TITLE_MAX, {
+                categorySlug: slug ?? undefined,
+              });
               const stockQty = getProductStockQty(product.stock);
               const outOfStock = isProductOutOfStock(product);
               const lowStock = isProductLowStock(product, lowStockThreshold);

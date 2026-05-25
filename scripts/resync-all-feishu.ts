@@ -68,8 +68,21 @@ async function main(): Promise<void> {
 
   const payload = memory[LOCAL_STORAGE_DB_KEY];
   if (typeof payload === 'string' && payload.length > 0) {
-    fs.writeFileSync(snapshotPath, payload, 'utf8');
-    console.log(`\nWrote ${snapshotPath} (${(payload.length / 1024 / 1024).toFixed(2)} MB)`);
+    let out = payload;
+    try {
+      const state = JSON.parse(payload) as Record<string, unknown>;
+      state.config = {
+        ...(typeof state.config === 'object' && state.config ? state.config : {}),
+        id: 'global',
+        catalogSnapshotExportedAt: new Date().toISOString(),
+      };
+      out = JSON.stringify(state);
+      memory[LOCAL_STORAGE_DB_KEY] = out;
+    } catch {
+      /* keep raw payload */
+    }
+    fs.writeFileSync(snapshotPath, out, 'utf8');
+    console.log(`\nWrote ${snapshotPath} (${(out.length / 1024 / 1024).toFixed(2)} MB)`);
     console.log('Total products:', getLocalProducts().length);
   }
 }
