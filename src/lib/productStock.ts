@@ -30,3 +30,12 @@ export function getProductPayPrice(
       : 0;
   return deal > 0 && deal < list ? deal : list;
 }
+
+/** 是否存在有效促销价（划线原价 + 更低成交价） */
+export function hasProductDealPrice(
+  product: Pick<Product, 'price' | 'discountPrice' | 'onSale'>
+): boolean {
+  const list = roundStorePrice(product.price);
+  if (list <= 0) return false;
+  return getProductPayPrice(product) < list;
+}

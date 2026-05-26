@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { formatEurPrice, roundStorePrice } from '../lib/storePrice';
+import { getProductPayPrice, hasProductDealPrice } from '../lib/productStock';
 import {
   formatStoreMoney,
   getProductDetailLowStockHint,
@@ -142,7 +143,11 @@ const RELATED_CARD_TITLE_MAX_CHARS = 56;
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const { product, loading } = useProduct(id!);
-  const { products: relatedProducts } = useProducts(product?.category);
+  const { products: relatedProducts } = useProducts({
+    category: product?.category,
+    limit: 24,
+    enabled: Boolean(product?.category),
+  });
   const { config } = useStoreConfig();
   const { categories } = useCategories();
   const { addItem } = useCart();
@@ -305,9 +310,10 @@ export default function ProductDetail() {
       ? 'text-amber-700'
       : 'text-brand-navy';
 
-  const unitPriceEur = roundStorePrice(
-    product.onSale && product.discountPrice != null ? product.discountPrice : product.price
-  );
+  const payPriceEur = getProductPayPrice(product);
+  const listPriceEur = roundStorePrice(product.price);
+  const showDealPrice = hasProductDealPrice(product);
+  const unitPriceEur = payPriceEur;
   const lineSubtotalEur = Math.max(0, unitPriceEur * quantity);
   const freeShipThreshold = getShippingFreeThreshold(config);
   const flatShipFee = getShippingFlatFee(config);
@@ -435,14 +441,16 @@ export default function ProductDetail() {
 
             <div className="mb-8">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className={`text-5xl font-brand font-bold ${product.onSale ? 'text-brand-beige' : 'text-brand-navy'} tracking-tighter`}>
-                  {formatEurPrice(product.discountPrice || product.price)}
+                <span
+                  className={`text-5xl font-brand font-bold ${showDealPrice ? 'text-brand-beige' : 'text-brand-navy'} tracking-tighter`}
+                >
+                  {formatEurPrice(payPriceEur)}
                 </span>
-                {product.onSale && (
+                {showDealPrice && listPriceEur > 0 ? (
                   <span className="text-lg text-brand-navy/25 font-bold line-through tracking-tighter">
-                    {formatEurPrice(product.price)}
+                    {formatEurPrice(listPriceEur)}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -609,7 +617,7 @@ export default function ProductDetail() {
                     <img src={item.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={cardTitle} />
                   </div>
                   <h4 className="text-sm font-black uppercase tracking-tight text-brand-navy group-hover:text-brand-accent transition-colors leading-tight mb-2 line-clamp-2 break-words hyphens-auto">{cardTitle}</h4>
-                  <p className="text-lg font-black text-brand-navy tracking-tighter">{formatEurPrice(item.discountPrice || item.price)}</p>
+                  <p className="text-lg font-black text-brand-navy tracking-tighter">{formatEurPrice(getProductPayPrice(item))}</p>
                 </Link>
               </motion.div>
               );

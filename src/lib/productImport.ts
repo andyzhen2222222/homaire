@@ -359,7 +359,7 @@ export function resolveImportedProductName(item: Record<string, unknown>): strin
     return skuCode.slice(0, PRODUCT_IMPORT_NAME_MAX);
   }
 
-  return pickFirstCellString(item, ['name', 'Name']).slice(0, PRODUCT_IMPORT_NAME_MAX) || 'Product';
+  return pickFirstCellString(item, ['name', 'Name']).slice(0, PRODUCT_IMPORT_NAME_MAX);
 }
 
 /** 前台售价：法国平台售价为主价；若有更低调价最低价则作促销价 */
@@ -368,16 +368,25 @@ export function resolveImportedListingPricing(item: Record<string, unknown>): {
   discountPrice: number;
   onSale: boolean;
 } {
+  const floorRaw = firstFiniteNumber(readImportCell(item, '法国平台调价最低价'));
   const listRaw = firstFiniteNumber(
     readImportCell(item, '法国平台售价'),
     readImportCell(item, '售价'),
-    readImportCell(item, '价格')
+    readImportCell(item, '价格'),
+    readImportCell(item, 'price'),
+    readImportCell(item, 'Price'),
+    readImportCell(item, '法国平台划线价格')
   );
-  const floorRaw = firstFiniteNumber(readImportCell(item, '法国平台调价最低价'));
-  let price = listRaw > 0 ? listRaw : firstFiniteNumber(readImportCell(item, '法国最新单价'));
+  let price =
+    listRaw > 0
+      ? listRaw
+      : firstFiniteNumber(readImportCell(item, '法国最新单价'));
 
   price = roundStorePrice(price);
   const floor = roundStorePrice(floorRaw);
+  if (price <= 0 && floor > 0) {
+    return { price: floor, discountPrice: 0, onSale: false };
+  }
   if (price > 0 && floor > 0 && floor < price) {
     return { price, discountPrice: floor, onSale: true };
   }

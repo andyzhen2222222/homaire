@@ -4,7 +4,7 @@ import { useCart } from '../components/CartContext';
 import { HomeSections } from '../components/home/HomeSections';
 
 export default function Home() {
-  const { products, loading: productsLoading } = useProducts();
+  const { products, loading: productsLoading } = useProducts({ limit: 500, sort: 'newest' });
   const { promotions } = usePromotions();
   const { config } = useStoreConfig();
   const { categories } = useCategories();

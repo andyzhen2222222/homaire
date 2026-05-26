@@ -1,6 +1,10 @@
 import type { Category, NavDepartment } from '../types';
 import { ensureNavDepartments } from './defaultNavDepartments';
-import { countProductsInCategorySubtree, sanitizeCategoriesParents } from './categoryTree';
+import {
+  countProductsInCategorySubtree,
+  getSubtreeSlugsByRootSlug,
+  sanitizeCategoriesParents,
+} from './categoryTree';
 
 export type NavMenuLink = {
   id: string;
@@ -46,7 +50,16 @@ function slugProductCount(
   slug: string,
   categories: Category[],
   products: { category: string }[],
+  productCountsBySlug?: Record<string, number>,
 ): number {
+  if (productCountsBySlug && Object.keys(productCountsBySlug).length > 0) {
+    const slugs = getSubtreeSlugsByRootSlug(slug, categories);
+    let sum = 0;
+    for (const s of slugs) {
+      sum += productCountsBySlug[s] ?? 0;
+    }
+    return sum;
+  }
   if (!products.length) return 0;
   return countProductsInCategorySubtree(slug, categories, products);
 }
@@ -56,6 +69,7 @@ export function buildStorefrontNavMenu(
   categories: Category[],
   navDepartments?: NavDepartment[] | null,
   products: { category: string }[] = [],
+  productCountsBySlug?: Record<string, number>,
 ): NavMenuDepartment[] {
   const list = sanitizeCategoriesParents(categories);
   const byParent = new Map<string | null, Category[]>();
@@ -78,12 +92,14 @@ export function buildStorefrontNavMenu(
         const l2Groups: NavMenuL2[] = l2Nodes.map((l2) => {
           const l3Nodes = childrenOf(l2.id, byParent);
           return {
-            ...toLink(l2, slugProductCount(l2.slug, list, products)),
-            children: l3Nodes.map((l3) => toLink(l3, slugProductCount(l3.slug, list, products))),
+            ...toLink(l2, slugProductCount(l2.slug, list, products, productCountsBySlug)),
+            children: l3Nodes.map((l3) =>
+              toLink(l3, slugProductCount(l3.slug, list, products, productCountsBySlug))
+            ),
           };
         });
         return {
-          ...toLink(l1!, slugProductCount(l1!.slug, list, products)),
+          ...toLink(l1!, slugProductCount(l1!.slug, list, products, productCountsBySlug)),
           children: l2Groups,
         };
       })

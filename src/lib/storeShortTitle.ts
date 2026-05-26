@@ -124,7 +124,7 @@ export function resolveStoreProductDisplayTitle(
   return abbreviateStoreTitle('Product', maxChars);
 }
 
-/** 列表 / 卡片标题：不用长描述 detailHtml，避免栅格出现整段 Product Story 首句；绝不展示 SKU 型号 */
+/** 列表 / 卡片标题：无 shortTitle/可读 name 时可用 detailHtml 首句（经截断）；绝不展示 SKU 型号 */
 export function displayStoreProductListTitle(
   product: Pick<Product, 'name' | 'category'> &
     Partial<Pick<Product, 'shortTitle' | 'description' | 'detailHtml' | 'features' | 'subCategory'>>,
@@ -141,6 +141,12 @@ export function displayStoreProductListTitle(
   if (desc && !isSkuLikeProductCode(desc)) {
     const lead = titleLeadFromLongText(desc, maxChars);
     if (lead) return abbreviateStoreTitle(lead, maxChars);
+  }
+
+  const detail = (product.detailHtml || '').trim();
+  if (detail) {
+    const lead = titleLeadFromLongText(detail, maxChars);
+    if (lead && !isSkuLikeProductCode(lead)) return abbreviateStoreTitle(lead, maxChars);
   }
 
   const feat = product.features?.map((f) => String(f).trim()).find((f) => f && !isSkuLikeProductCode(f));

@@ -3,7 +3,17 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LogOut, User as UserIcon, Package, MapPin, Settings, Heart, Truck, Clock, CheckCircle, ChevronRight, ShoppingBag } from 'lucide-react';
 import { Navigate, Link } from 'react-router-dom';
 import { useUserOrders } from '../hooks/useUserData';
-import { useState } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
+import {
+  fetchAddresses,
+  createAddressApi,
+  deleteAddressApi,
+  fetchWishlist,
+  removeWishlistApi,
+  type UserAddressDto,
+} from '../lib/userExtrasApi';
+import { isRemoteStoreEnabled } from '../lib/storeConfig';
+import { Link as RouterLink } from 'react-router-dom';
 import { displayStoreProductTitle } from '../lib/storeShortTitle';
 import { formatEurPrice } from '../lib/storePrice';
 
@@ -11,6 +21,35 @@ export default function ProfilePage() {
   const { user, profile, loading: authLoading, logout } = useAuth();
   const { orders, loading: ordersLoading } = useUserOrders();
   const [activeTab, setActiveTab] = useState('orders');
+  const [addresses, setAddresses] = useState<UserAddressDto[]>([]);
+  const [wishlist, setWishlist] = useState<import('../types').Product[]>([]);
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    fullName: '',
+    address: '',
+    city: '',
+    phone: '',
+    country: '',
+  });
+
+  useEffect(() => {
+    if (!user || !isRemoteStoreEnabled()) return;
+    if (activeTab === 'addresses') {
+      setExtrasLoading(true);
+      void fetchAddresses().then(setAddresses).finally(() => setExtrasLoading(false));
+    }
+    if (activeTab === 'wishlist') {
+      setExtrasLoading(true);
+      void fetchWishlist().then(setWishlist).finally(() => setExtrasLoading(false));
+    }
+  }, [user, activeTab]);
+
+  const onAddAddress = async (e: FormEvent) => {
+    e.preventDefault();
+    const addr = await createAddressApi({ ...addressForm, isDefault: addresses.length === 0 });
+    setAddresses((prev) => [...prev, addr]);
+    setAddressForm({ fullName: '', address: '', city: '', phone: '', country: '' });
+  };
 
   if (authLoading) return <div className="h-screen flex items-center justify-center font-black uppercase tracking-tighter text-2xl animate-pulse">Loading...</div>;
   
@@ -196,17 +235,33 @@ export default function ProfilePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="bg-white p-32 text-center border border-brand-gray rounded-[4rem] shadow-sm min-h-[600px] flex flex-col items-center justify-center"
+                className="bg-white p-16 border border-brand-gray rounded-[4rem] shadow-sm min-h-[400px]"
               >
-                <motion.div 
-                  animate={{ scale: [1, 1.05, 1], rotate: [0, 2, -2, 0] }}
-                  transition={{ repeat: Infinity, duration: 6 }}
-                  className="w-24 h-24 bg-brand-gray/50 rounded-[2.5rem] flex items-center justify-center mb-10 border border-brand-gray shadow-inner"
-                >
-                  <Heart className="w-10 h-10 text-brand-beige" fill="currentColor" />
-                </motion.div>
-                <h3 className="text-3xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-6">Your Curation</h3>
-                <p className="text-brand-navy/40 text-[11px] font-bold uppercase tracking-[0.2em] leading-loose max-w-sm">Save the designs that synchronize with your vision for future acquisition.</p>
+                <h3 className="text-3xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-10">Your Curation</h3>
+                {extrasLoading ? (
+                  <p className="text-brand-navy/40">Loading…</p>
+                ) : wishlist.length === 0 ? (
+                  <p className="text-brand-navy/40 text-[11px] font-bold uppercase tracking-[0.2em]">No saved items yet. Heart products from the catalog.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {wishlist.map((p) => (
+                      <div key={p.id} className="flex gap-4 border border-brand-gray rounded-2xl p-4">
+                        <img src={p.images[0]} alt="" className="w-20 h-20 object-cover rounded-xl" />
+                        <div className="flex-grow min-w-0">
+                          <RouterLink to={`/product/${p.id}`} className="font-bold text-brand-navy line-clamp-2">{p.shortTitle || p.name}</RouterLink>
+                          <p className="text-sm mt-1">{formatEurPrice(p.price)}</p>
+                          <button
+                            type="button"
+                            className="text-xs text-red-500 mt-2 uppercase font-bold"
+                            onClick={() => void removeWishlistApi(p.id).then(() => setWishlist((w) => w.filter((x) => x.id !== p.id)))}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -219,14 +274,36 @@ export default function ProfilePage() {
                 className="bg-white p-16 border border-brand-gray shadow-sm rounded-[4rem]"
               >
                 <h1 className="text-5xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-16 leading-none border-b border-brand-gray pb-12">Shipping <span className="text-brand-beige">Nodes</span>.</h1>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <button className="border-2 border-dashed border-brand-gray p-12 rounded-[3rem] flex flex-col items-center justify-center group hover:border-brand-beige transition-all bg-brand-gray/20">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 text-brand-navy/20 group-hover:bg-brand-beige group-hover:text-white transition-all shadow-xl group-hover:scale-110">
-                      <MapPin className="w-8 h-8" />
-                    </div>
-                    <span className="text-[11px] font-bold uppercase tracking-[0.3em] text-brand-navy/40 group-hover:text-brand-navy transition-colors">Establish New Logistics Node</span>
-                  </button>
-                </div>
+                {extrasLoading ? (
+                  <p className="text-brand-navy/40">Loading…</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    {addresses.map((a) => (
+                      <div key={a.id} className="border border-brand-gray p-8 rounded-[2rem] relative">
+                        {a.isDefault && (
+                          <span className="absolute top-4 right-4 text-[9px] font-bold uppercase text-brand-beige">Default</span>
+                        )}
+                        <p className="font-bold text-brand-navy">{a.fullName}</p>
+                        <p className="text-sm text-brand-navy/60 mt-2">{a.address}, {a.city}</p>
+                        {a.phone && <p className="text-xs mt-1">{a.phone}</p>}
+                        <button
+                          type="button"
+                          className="text-xs text-red-500 mt-4 uppercase font-bold"
+                          onClick={() => void deleteAddressApi(a.id).then(() => setAddresses((prev) => prev.filter((x) => x.id !== a.id)))}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <form onSubmit={onAddAddress} className="border-2 border-dashed border-brand-gray p-8 rounded-[3rem] space-y-3 bg-brand-gray/20">
+                      <input required placeholder="Full name" className="w-full border rounded-lg px-3 py-2 text-sm" value={addressForm.fullName} onChange={(e) => setAddressForm({ ...addressForm, fullName: e.target.value })} />
+                      <input required placeholder="Address" className="w-full border rounded-lg px-3 py-2 text-sm" value={addressForm.address} onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })} />
+                      <input required placeholder="City" className="w-full border rounded-lg px-3 py-2 text-sm" value={addressForm.city} onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })} />
+                      <input placeholder="Phone" className="w-full border rounded-lg px-3 py-2 text-sm" value={addressForm.phone} onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })} />
+                      <button type="submit" className="w-full bg-brand-navy text-white py-3 rounded-full text-[10px] uppercase font-bold tracking-widest">Add address</button>
+                    </form>
+                  </div>
+                )}
               </motion.div>
             )}
 

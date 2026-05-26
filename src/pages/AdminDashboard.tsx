@@ -81,7 +81,7 @@ function productListSortKey(p: Product): number {
 }
 
 export default function AdminDashboard() {
-  const { products } = useProducts();
+  const { products } = useProducts({ limit: 5000 });
   /** 后台列表：最新创建/更新的商品在前，导入数据会出现在表格上方 */
   const inventoryProducts = useMemo(
     () => [...products].sort((a, b) => productListSortKey(b) - productListSortKey(a)),
@@ -199,13 +199,11 @@ export default function AdminDashboard() {
         <div className="max-w-md text-center">
           <h1 className="mb-2 text-xl font-medium text-[#303133]">管理员登录</h1>
           <p className="text-sm text-[#909399]">
-            本地模式：数据保存在本浏览器。默认密码{' '}
+            使用服务端账号登录（SQLite）。默认管理员：{' '}
+            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin@homaire.local</code>
+            {' / '}
             <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">admin</code>
-            ；可在{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">.env</code>{' '}
-            中通过{' '}
-            <code className="rounded border border-[#ebeef5] bg-white px-1 py-0.5 text-xs">VITE_LOCAL_ADMIN_PASSWORD</code>{' '}
-            覆盖。
+            （可通过环境变量 <code className="text-xs">ADMIN_SEED_EMAIL</code>、<code className="text-xs">ADMIN_SEED_PASSWORD</code> 修改）。
           </p>
         </div>
 

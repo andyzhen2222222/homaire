@@ -4,11 +4,11 @@ import {
   readLocalSession,
   writeLocalSession,
   clearLocalSession,
-  stableUidFromEmail,
   type LocalSession,
 } from '../lib/localSession';
+import { apiFetchMe, apiLogin, apiRegister, clearAuthToken } from '../lib/authApi';
+import { isRemoteStoreEnabled } from '../lib/storeConfig';
 
-/** 与原先 Firebase User 在界面中使用的字段对齐 */
 export interface AuthUser {
   uid: string;
   email: string | null;
@@ -20,34 +20,42 @@ export interface AuthUser {
 export type LoginWithCredentialsParams = {
   email: string;
   displayName?: string;
-  /** 与 VITE_LOCAL_ADMIN_PASSWORD 一致（未配置时默认 admin）则为管理员 */
   adminPassword: string;
-  /** 为 true 时：口令不正确则不写入会话，并返回错误（用于 /admin 登录） */
   requireMatchingAdminPassword?: boolean;
 };
 
 export type LoginWithCredentialsResult = { ok: true } | { ok: false; error: string };
 
-function getExpectedAdminPassword(): string {
-  const configured = import.meta.env.VITE_LOCAL_ADMIN_PASSWORD;
-  if (configured === undefined || configured === null || String(configured).length === 0) {
-    return 'admin';
-  }
-  return String(configured);
-}
+export type RegisterParams = {
+  email: string;
+  password: string;
+  displayName: string;
+};
 
 interface AuthContextType {
   user: AuthUser | null;
   profile: UserProfile | null;
   loading: boolean;
-  /** 连续弹窗登录（页头「Login」等），仍可用 */
-  login: () => Promise<void>;
-  /** 表单登录；可选要求管理员口令必须正确 */
+  login: () => void;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
+  authModalOpen: boolean;
   loginWithCredentials: (params: LoginWithCredentialsParams) => Promise<LoginWithCredentialsResult>;
+  register: (params: RegisterParams) => Promise<LoginWithCredentialsResult>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function profileToAuthUser(p: UserProfile): AuthUser {
+  return {
+    uid: p.uid,
+    email: p.email,
+    displayName: p.displayName,
+    photoURL: p.photoURL || null,
+    emailVerified: true,
+  };
+}
 
 function sessionToAuthUser(s: LocalSession): AuthUser {
   return {
@@ -69,78 +77,127 @@ function sessionToProfile(s: LocalSession): UserProfile {
   };
 }
 
+function applyProfile(setUser: (u: AuthUser | null) => void, setProfile: (p: UserProfile | null) => void, p: UserProfile) {
+  setUser(profileToAuthUser(p));
+  setProfile(p);
+  writeLocalSession({
+    uid: p.uid,
+    email: p.email,
+    displayName: p.displayName,
+    photoURL: p.photoURL || null,
+    isAdmin: p.isAdmin,
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    const s = readLocalSession();
-    if (s) {
-      setUser(sessionToAuthUser(s));
-      setProfile(sessionToProfile(s));
-    }
-    setLoading(false);
-  }, []);
-
-  const commitSession = useCallback((email: string, displayName: string, adminPassword: string) => {
-    const expected = getExpectedAdminPassword();
-    const isAdmin = adminPassword === expected;
-    const session: LocalSession = {
-      uid: stableUidFromEmail(email),
-      email,
-      displayName,
-      photoURL: null,
-      isAdmin,
+    const boot = async () => {
+      if (isRemoteStoreEnabled()) {
+        const me = await apiFetchMe();
+        if (me) {
+          applyProfile(setUser, setProfile, me);
+          setLoading(false);
+          return;
+        }
+      }
+      const s = readLocalSession();
+      if (s) {
+        setUser(sessionToAuthUser(s));
+        setProfile(sessionToProfile(s));
+      }
+      setLoading(false);
     };
-    writeLocalSession(session);
-    setUser(sessionToAuthUser(session));
-    setProfile(sessionToProfile(session));
+    void boot();
   }, []);
 
   const loginWithCredentials = useCallback(
     async (params: LoginWithCredentialsParams): Promise<LoginWithCredentialsResult> => {
-      const email = (params.email || '').trim() || 'demo@local.test';
-      const displayName =
-        (params.displayName?.trim() || email.split('@')[0] || 'User').trim() || 'User';
-      const pwd = params.adminPassword ?? '';
-      const expected = getExpectedAdminPassword();
-      const matches = pwd === expected;
-
-      if (params.requireMatchingAdminPassword && !matches) {
-        return {
-          ok: false,
-          error:
-            '管理员密码不正确。若 .env 未设置 VITE_LOCAL_ADMIN_PASSWORD，默认密码为 admin；否则请使用 .env 中的配置值。',
-        };
+      const email = (params.email || '').trim();
+      const password = params.adminPassword ?? '';
+      if (!email || !password) {
+        return { ok: false, error: '请输入邮箱和密码' };
       }
 
-      commitSession(email, displayName, pwd);
+      if (isRemoteStoreEnabled()) {
+        const result = await apiLogin(email, password);
+        if (!result.ok || !result.user) {
+          return { ok: false, error: result.error || '登录失败' };
+        }
+        if (params.requireMatchingAdminPassword && !result.user.isAdmin) {
+          clearAuthToken();
+          return { ok: false, error: '该账号不是管理员' };
+        }
+        applyProfile(setUser, setProfile, result.user);
+        setAuthModalOpen(false);
+        return { ok: true };
+      }
+
+      const displayName =
+        (params.displayName?.trim() || email.split('@')[0] || 'User').trim() || 'User';
+      const session: LocalSession = {
+        uid: `local_${email}`,
+        email,
+        displayName,
+        photoURL: null,
+        isAdmin: params.requireMatchingAdminPassword ? true : false,
+      };
+      writeLocalSession(session);
+      setUser(sessionToAuthUser(session));
+      setProfile(sessionToProfile(session));
+      setAuthModalOpen(false);
       return { ok: true };
     },
-    [commitSession]
+    []
   );
 
-  const login = useCallback(async () => {
-    const emailInput = window.prompt('Sign-in email (stored in this browser)', 'demo@local.test');
-    if (emailInput === null) return;
-    const email = emailInput.trim() || 'demo@local.test';
-    const nameInput = window.prompt('Display name (optional)', email.split('@')[0] || 'User');
-    if (nameInput === null) return;
-    const displayName = nameInput.trim() || email.split('@')[0] || 'User';
-    const pwdInput = window.prompt('Admin password (leave empty for shopper only; default admin)', '');
-    if (pwdInput === null) return;
-    commitSession(email, displayName, pwdInput);
-  }, [commitSession]);
+  const register = useCallback(async (params: RegisterParams): Promise<LoginWithCredentialsResult> => {
+    if (isRemoteStoreEnabled()) {
+      const result = await apiRegister(params.email, params.password, params.displayName);
+      if (!result.ok || !result.user) {
+        return { ok: false, error: result.error || '注册失败' };
+      }
+      applyProfile(setUser, setProfile, result.user);
+      setAuthModalOpen(false);
+      return { ok: true };
+    }
+    return loginWithCredentials({
+      email: params.email,
+      displayName: params.displayName,
+      adminPassword: params.password,
+    });
+  }, [loginWithCredentials]);
 
   const logout = useCallback(async () => {
+    clearAuthToken();
     clearLocalSession();
     setUser(null);
     setProfile(null);
   }, []);
 
+  const openAuthModal = useCallback(() => setAuthModalOpen(true), []);
+  const closeAuthModal = useCallback(() => setAuthModalOpen(false), []);
+  const login = openAuthModal;
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, loginWithCredentials, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading,
+        login,
+        openAuthModal,
+        closeAuthModal,
+        authModalOpen,
+        loginWithCredentials,
+        register,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

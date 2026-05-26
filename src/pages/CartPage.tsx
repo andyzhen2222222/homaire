@@ -1,22 +1,65 @@
+import { useState, FormEvent } from 'react';
 import { useCart } from '../components/CartContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash2, Plus, Minus, ArrowRight, ShieldCheck, Truck } from 'lucide-react';
 import { useStoreConfig } from '../hooks/useAdminData';
 import { formatStoreMoney, getShippingFlatFee, getShippingFreeThreshold } from '../lib/storeShipping';
-import { formatEurPrice } from '../lib/storePrice';
+import { formatEurPrice, getEffectiveUnitPrice } from '../lib/storePrice';
 import { displayStoreProductTitle } from '../lib/storeShortTitle';
+import { useAuth } from '../components/AuthContext';
+import { createCheckoutOrder } from '../lib/checkoutApi';
+import type { ShippingAddress } from '../types';
 
 const CART_ROW_TITLE_MAX = 52;
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, totalPrice, itemCount } = useCart();
+  const { items, removeItem, updateQuantity, totalPrice, itemCount, clearCart } = useCart();
   const { config } = useStoreConfig();
+  const { user, openAuthModal } = useAuth();
+  const navigate = useNavigate();
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [address, setAddress] = useState<ShippingAddress>({
+    fullName: '',
+    email: user?.email ?? '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    country: '',
+  });
+
   const freeTh = getShippingFreeThreshold(config);
   const flatFee = getShippingFlatFee(config);
   const shipComplimentary = totalPrice > freeTh;
   const shipLine = shipComplimentary ? 'COMPLIMENTARY' : formatStoreMoney(flatFee, config?.currency);
   const estTotal = shipComplimentary ? totalPrice : totalPrice + flatFee;
+
+  const onCheckout = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+    setCheckoutError(null);
+    setSubmitting(true);
+    try {
+      await createCheckoutOrder({
+        items: items.map((i) => ({ productId: i.id, quantity: i.quantity })),
+        shippingAddress: { ...address, email: address.email || user.email || '' },
+      });
+      clearCart();
+      setCheckoutOpen(false);
+      navigate('/profile');
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Checkout failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-32 bg-white min-h-screen">
@@ -34,11 +77,11 @@ export default function CartPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-20">
-          {/* Item List */}
           <div className="lg:col-span-2 space-y-16">
             <AnimatePresence>
               {items.map((item) => {
                 const rowTitle = displayStoreProductTitle(item, CART_ROW_TITLE_MAX);
+                const unit = getEffectiveUnitPrice(item);
                 return (
                 <motion.div 
                   key={item.id}
@@ -78,9 +121,9 @@ export default function CartPage() {
                         ><Plus className="w-3 h-3" /></button>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-brand font-bold text-brand-navy tracking-tighter leading-none mb-2">{formatEurPrice(item.price * item.quantity)}</p>
+                        <p className="text-3xl font-brand font-bold text-brand-navy tracking-tighter leading-none mb-2">{formatEurPrice(unit * item.quantity)}</p>
                         {item.quantity > 1 && (
-                          <p className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.2em]">{formatEurPrice(item.price)} unit price</p>
+                          <p className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-[0.2em]">{formatEurPrice(unit)} unit price</p>
                         )}
                       </div>
                     </div>
@@ -91,7 +134,6 @@ export default function CartPage() {
             </AnimatePresence>
           </div>
 
-          {/* Summary */}
           <div className="lg:col-span-1">
             <div className="bg-white p-12 sticky top-48 border border-brand-gray rounded-[3rem] shadow-xl">
               <h2 className="text-4xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-10 border-b border-brand-gray pb-6">CURATION SUMMARY</h2>
@@ -113,7 +155,13 @@ export default function CartPage() {
               </div>
               <button 
                 className="w-full bg-brand-navy text-white py-6 rounded-full uppercase font-bold tracking-widest text-[11px] flex items-center justify-center gap-4 hover:bg-brand-beige transition-all group shadow-3xl"
-                onClick={() => alert('Secure payment integration pending.')}
+                onClick={() => {
+                  if (!user) {
+                    openAuthModal();
+                    return;
+                  }
+                  setCheckoutOpen(true);
+                }}
               >
                 PROCEED TO ACQUISITION
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -130,6 +178,43 @@ export default function CartPage() {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {checkoutOpen && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setCheckoutOpen(false)} />
+            <motion.form
+              onSubmit={onCheckout}
+              className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-brand-gray bg-white p-8 shadow-2xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <h3 className="text-xl font-brand font-bold uppercase tracking-tighter text-brand-navy mb-6">Shipping Details</h3>
+              <div className="space-y-3 text-sm">
+                <input required placeholder="Full name" className="w-full border rounded-lg px-3 py-2" value={address.fullName} onChange={(e) => setAddress({ ...address, fullName: e.target.value })} />
+                <input type="email" placeholder="Email" className="w-full border rounded-lg px-3 py-2" value={address.email ?? ''} onChange={(e) => setAddress({ ...address, email: e.target.value })} />
+                <input placeholder="Phone" className="w-full border rounded-lg px-3 py-2" value={address.phone ?? ''} onChange={(e) => setAddress({ ...address, phone: e.target.value })} />
+                <input required placeholder="Address" className="w-full border rounded-lg px-3 py-2" value={address.address} onChange={(e) => setAddress({ ...address, address: e.target.value })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <input required placeholder="City" className="border rounded-lg px-3 py-2" value={address.city} onChange={(e) => setAddress({ ...address, city: e.target.value })} />
+                  <input placeholder="State" className="border rounded-lg px-3 py-2" value={address.state ?? ''} onChange={(e) => setAddress({ ...address, state: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input placeholder="ZIP" className="border rounded-lg px-3 py-2" value={address.zip ?? ''} onChange={(e) => setAddress({ ...address, zip: e.target.value })} />
+                  <input placeholder="Country" className="border rounded-lg px-3 py-2" value={address.country ?? ''} onChange={(e) => setAddress({ ...address, country: e.target.value })} />
+                </div>
+              </div>
+              {checkoutError && <p className="mt-4 text-sm text-red-600">{checkoutError}</p>}
+              <div className="mt-6 flex gap-3">
+                <button type="button" onClick={() => setCheckoutOpen(false)} className="flex-1 border rounded-full py-3 text-xs uppercase font-bold">Cancel</button>
+                <button type="submit" disabled={submitting} className="flex-1 bg-brand-navy text-white rounded-full py-3 text-xs uppercase font-bold disabled:opacity-50">
+                  {submitting ? 'Placing order…' : `Place order · ${formatStoreMoney(estTotal, config?.currency)}`}
+                </button>
+              </div>
+            </motion.form>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

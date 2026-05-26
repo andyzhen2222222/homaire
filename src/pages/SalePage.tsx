@@ -2,22 +2,18 @@ import { useProducts } from '../hooks/useProducts';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { Tag, Zap, Percent, ArrowRight, Clock, ShoppingCart } from 'lucide-react';
-import { useMemo } from 'react';
 import { useCart } from '../components/CartContext';
 import { displayStoreProductListTitle } from '../lib/storeShortTitle';
 import { ProductListImage } from '../components/ProductListImage';
 import { PRODUCT_LIST_IMAGE_ASPECT_CLASS } from '../lib/productImages';
 import { formatEurPrice } from '../lib/storePrice';
+import { getProductPayPrice, hasProductDealPrice } from '../lib/productStock';
 
 const SALE_GRID_TITLE_MAX = 56;
 
 export default function SalePage() {
-  const { products, loading } = useProducts();
+  const { products: saleProducts, loading } = useProducts({ onSale: true, limit: 300 });
   const { addItem } = useCart();
-
-  const saleProducts = useMemo(() => {
-    return products.filter(p => p.onSale || p.category === 'sale');
-  }, [products]);
 
   if (loading) {
     return <div className="h-screen flex items-center justify-center font-black uppercase tracking-tighter text-3xl animate-pulse">Loading Deals...</div>;
@@ -74,6 +70,13 @@ export default function SalePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-10 gap-y-20">
           {saleProducts.map((product, i) => {
             const listTitle = displayStoreProductListTitle(product, SALE_GRID_TITLE_MAX);
+            const payPrice = getProductPayPrice(product);
+            const listPrice = product.price;
+            const showDeal = hasProductDealPrice(product);
+            const discountPct =
+              showDeal && listPrice > 0
+                ? Math.round((1 - payPrice / listPrice) * 100)
+                : 0;
             return (
             <motion.div
               key={product.id}
@@ -93,9 +96,11 @@ export default function SalePage() {
                   
                   {/* Sale Badges */}
                   <div className="absolute top-6 left-6 flex flex-col gap-2">
+                    {showDeal && discountPct > 0 ? (
                     <span className="bg-brand-beige text-white text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full shadow-2xl">
-                      -{Math.round((1 - (product.discountPrice || product.price) / product.price) * 100)}%
+                      -{discountPct}%
                     </span>
+                    ) : null}
                     <span className="bg-brand-navy text-white text-[8px] font-bold uppercase tracking-widest px-3 py-1 rounded-lg shadow-xl">
                       Signature Sale
                     </span>
@@ -117,8 +122,12 @@ export default function SalePage() {
                 <div className="px-2">
                   <h3 className="text-base font-brand font-bold uppercase tracking-tight mb-2 text-brand-navy group-hover:text-brand-beige transition-colors line-clamp-2 break-words hyphens-auto">{listTitle}</h3>
                   <div className="flex items-center gap-4">
-                    <span className="text-xl font-bold text-brand-beige">{formatEurPrice(product.discountPrice || product.price)}</span>
-                    <span className="text-xs font-bold text-brand-navy/20 line-through">{formatEurPrice(product.price)}</span>
+                    <span className={`text-xl font-bold ${showDeal ? 'text-brand-beige' : 'text-brand-navy'}`}>
+                      {formatEurPrice(payPrice)}
+                    </span>
+                    {showDeal && listPrice > 0 ? (
+                      <span className="text-xs font-bold text-brand-navy/20 line-through">{formatEurPrice(listPrice)}</span>
+                    ) : null}
                   </div>
                 </div>
               </Link>

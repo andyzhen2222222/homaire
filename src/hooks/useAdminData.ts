@@ -32,6 +32,12 @@ import {
   queryOrders,
   seedDemoOrderIfEmpty,
 } from '../lib/adminOrders';
+import {
+  useCategoriesLive,
+  usePromotionsLive,
+  useStoreConfigLive,
+} from './useCatalogMeta';
+import { emitCatalogInvalidate } from '../lib/catalogEvents';
 
 export function useOrders() {
   const admin = useAdminOrders();
@@ -146,22 +152,14 @@ export function useAdminOrders(initialQuery: OrderListQuery = { status: 'all' })
 }
 
 export function usePromotions() {
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const sync = () => {
-      setPromotions(getLocalPromotionsSorted());
-      setLoading(false);
-    };
-    sync();
-    return subscribeLocalDb(sync);
-  }, []);
+  const { promotions, loading, refetch } = usePromotionsLive(false);
 
   const togglePromotion = async (id: string, active: boolean) => {
     try {
       localTogglePromotion(id, active);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `promotions/${id}`);
     }
@@ -171,6 +169,8 @@ export function usePromotions() {
     try {
       localDeletePromotion(id);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `promotions/${id}`);
     }
@@ -180,6 +180,8 @@ export function usePromotions() {
     try {
       localAddPromotion(promo);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'promotions');
     }
@@ -189,22 +191,14 @@ export function usePromotions() {
 }
 
 export function useCategories() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const sync = () => {
-      setCategories(getLocalCategoriesSorted());
-      setLoading(false);
-    };
-    sync();
-    return subscribeLocalDb(sync);
-  }, []);
+  const { categories, productCountsBySlug, loading, refetch } = useCategoriesLive();
 
   const addCategory = async (cat: Omit<Category, 'id'>) => {
     try {
       localAddCategory(cat);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'categories');
     }
@@ -214,6 +208,8 @@ export function useCategories() {
     try {
       localUpdateCategory(id, updates);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `categories/${id}`);
     }
@@ -223,12 +219,14 @@ export function useCategories() {
     try {
       localDeleteCategory(id);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `categories/${id}`);
     }
   };
 
-  return { categories, loading, addCategory, updateCategory, deleteCategory };
+  return { categories, productCountsBySlug, loading, addCategory, updateCategory, deleteCategory };
 }
 
 export function useAdminActions() {
@@ -236,6 +234,7 @@ export function useAdminActions() {
     try {
       localAddProduct(product);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'products');
     }
@@ -245,6 +244,7 @@ export function useAdminActions() {
     try {
       localUpdateProduct(id, updates);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
     }
@@ -254,6 +254,7 @@ export function useAdminActions() {
     try {
       localDeleteProduct(id);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
@@ -264,6 +265,7 @@ export function useAdminActions() {
       try {
         localBulkAddProducts(products);
         await syncAdminChangeToServer();
+        emitCatalogInvalidate();
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, 'products');
       }
@@ -296,22 +298,14 @@ export function useAdminActions() {
 }
 
 export function useStoreConfig() {
-  const [config, setConfig] = useState<StoreConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const sync = () => {
-      setConfig(getLocalConfig());
-      setLoading(false);
-    };
-    sync();
-    return subscribeLocalDb(sync);
-  }, []);
+  const { config, loading, refetch } = useStoreConfigLive();
 
   const updateConfig = async (updates: Partial<StoreConfig>) => {
     try {
       localUpdateConfig(updates);
       await syncAdminChangeToServer();
+      emitCatalogInvalidate();
+      await refetch();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'config/global');
     }

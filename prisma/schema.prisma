@@ -1,0 +1,273 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  photoUrl     String?  @map("photo_url")
+  isAdmin      Boolean  @default(false) @map("is_admin")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  orders        Order[]
+  addresses     UserAddress[]
+  wishlistItems WishlistItem[]
+  cartItems     CartItem[]
+
+  @@map("users")
+}
+
+model Category {
+  id                        String     @id @default(cuid())
+  name                      String
+  slug                      String     @unique
+  image                     String
+  description               String?
+  parentId                  String?    @map("parent_id")
+  parent                    Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children                  Category[] @relation("CategoryTree")
+  sortOrder                 Int        @default(0) @map("sort_order")
+  featuredProductIds        String     @default("[]") @map("featured_product_ids")
+  feishuBitableUrl          String?    @map("feishu_bitable_url")
+  feishuSyncEnabled         Boolean    @default(false) @map("feishu_sync_enabled")
+  feishuSyncIntervalMinutes Int        @default(120) @map("feishu_sync_interval_minutes")
+  feishuLastSyncedAt        DateTime?  @map("feishu_last_synced_at")
+  feishuLastSyncCount       Int?       @map("feishu_last_sync_count")
+  feishuLastSyncMessage     String?    @map("feishu_last_sync_message")
+  createdAt                 DateTime   @default(now()) @map("created_at")
+  updatedAt                 DateTime   @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@index([parentId, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  name            String
+  shortTitle      String?  @map("short_title")
+  description     String
+  detailHtml      String?  @map("detail_html")
+  price           Float
+  onSale          Boolean  @default(false) @map("on_sale")
+  discountPrice   Float?   @map("discount_price")
+  images          String   @default("[]")
+  videoUrl        String?  @map("video_url")
+  manualUrl       String?  @map("manual_url")
+  categoryId      String   @map("category_id")
+  category        Category @relation(fields: [categoryId], references: [id])
+  categorySlug    String   @map("category_slug")
+  subCategory     String?  @map("sub_category")
+  stock           Int      @default(0)
+  features        String?
+  featuredOnHome  Boolean  @default(false) @map("featured_on_home")
+  syncSource      String?  @map("sync_source")
+  feishuRecordId  String?  @unique @map("feishu_record_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
+  cartItems     CartItem[]
+
+  @@index([categorySlug])
+  @@index([categoryId])
+  @@index([onSale])
+  @@index([featuredOnHome])
+  @@map("products")
+}
+
+model Promotion {
+  id        String        @id @default(cuid())
+  title     String
+  subtitle  String?
+  imageUrl  String        @map("image_url")
+  link      String?
+  active    Boolean       @default(true)
+  priority  Int?
+  type      String
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([active, type, priority])
+  @@map("promotions")
+}
+
+model Order {
+  id                 String      @id
+  userId             String      @map("user_id")
+  user               User        @relation(fields: [userId], references: [id])
+  total              Float
+  status             String      @default("pending")
+  shippingFullName   String      @map("shipping_full_name")
+  shippingEmail      String?     @map("shipping_email")
+  shippingPhone      String?     @map("shipping_phone")
+  shippingAddress    String      @map("shipping_address")
+  shippingCity       String      @map("shipping_city")
+  shippingState      String?     @map("shipping_state")
+  shippingZip        String?     @map("shipping_zip")
+  shippingCountry    String?     @map("shipping_country")
+  carrier            String?
+  trackingNumber     String?     @map("tracking_number")
+  shippedAt          DateTime?   @map("shipped_at")
+  adminNote          String?     @map("admin_note")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  items OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String  @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+  name      String
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model StoreSettings {
+  id        String   @id @default("global")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  storeName              String?  @map("store_name")
+  currency               String?  @default("EUR")
+  contactEmail           String?  @map("contact_email")
+  lowStockThreshold      Int?     @map("low_stock_threshold")
+  shippingFreeThreshold  Float?   @map("shipping_free_threshold")
+  shippingFlatFee        Float?   @map("shipping_flat_fee")
+  shippingPolicy         String?  @map("shipping_policy")
+  returnPolicy           String?  @map("return_policy")
+  maintenanceMode        Boolean  @default(false) @map("maintenance_mode")
+  catalogSnapshotExportedAt String? @map("catalog_snapshot_exported_at")
+
+  siteTitle   String? @map("site_title")
+  siteTagline String? @map("site_tagline")
+
+  topBarLine1       String? @map("top_bar_line1")
+  topBarLine2       String? @map("top_bar_line2")
+  topBarLine3       String? @map("top_bar_line3")
+  topBarHelpText    String? @map("top_bar_help_text")
+  topBarLocaleText  String? @map("top_bar_locale_text")
+
+  globalServiceStripTitle        String? @map("global_service_strip_title")
+  globalServiceDeliveryTime      String? @map("global_service_delivery_time")
+  globalServiceDeliveryArea      String? @map("global_service_delivery_area")
+  globalServiceInstallation      String? @map("global_service_installation")
+  globalServiceWarranty          String? @map("global_service_warranty")
+
+  productDetailStockLabel         String? @map("product_detail_stock_label")
+  productDetailShippingLabel      String? @map("product_detail_shipping_label")
+  productDetailShippingFreeLabel  String? @map("product_detail_shipping_free_label")
+  productDetailLowStockHint       String? @map("product_detail_low_stock_hint")
+  productDetailOutOfStockHint     String? @map("product_detail_out_of_stock_hint")
+  productDetailShippingFootnote   String? @map("product_detail_shipping_footnote")
+
+  footerIntro       String? @map("footer_intro")
+  footerCopyright   String? @map("footer_copyright")
+  footerSloganLine  String? @map("footer_slogan_line")
+
+  newsletterTitle       String? @map("newsletter_title")
+  newsletterSubcopy     String? @map("newsletter_subcopy")
+  newsletterCtaLabel    String? @map("newsletter_cta_label")
+  newsletterPlaceholder String? @map("newsletter_placeholder")
+
+  homeReviewsEyebrow String? @map("home_reviews_eyebrow")
+  homeReviewsTitle   String? @map("home_reviews_title")
+  homeReviewsIntro   String? @map("home_reviews_intro")
+
+  homeManifestoEyebrow    String? @map("home_manifesto_eyebrow")
+  homeManifestoTitle      String? @map("home_manifesto_title")
+  homeManifestoBody       String? @map("home_manifesto_body")
+  homeManifestoCtaLabel   String? @map("home_manifesto_cta_label")
+  homeManifestoCtaHref    String? @map("home_manifesto_cta_href")
+  homeManifestoImageUrl   String? @map("home_manifesto_image_url")
+  homeManifestoCardTitle  String? @map("home_manifesto_card_title")
+  homeManifestoCardSub    String? @map("home_manifesto_card_sub")
+  homeManifestoCardYear   String? @map("home_manifesto_card_year")
+
+  homeShopEyebrow      String? @map("home_shop_eyebrow")
+  homeShopTitle        String? @map("home_shop_title")
+  homeShopViewAllLabel String? @map("home_shop_view_all_label")
+
+  homeTrendingEyebrow String? @map("home_trending_eyebrow")
+  homeTrendingTitle   String? @map("home_trending_title")
+
+  homeTrustItems       String? @map("home_trust_items")
+  homeReviewsItems     String? @map("home_reviews_items")
+  homeHeroSpotlights   String? @map("home_hero_spotlights")
+  homeCategoryTiles    String? @map("home_category_tiles")
+  categoryHeroes       String? @map("category_heroes")
+  navDepartments       String? @map("nav_departments")
+
+  @@map("store_settings")
+}
+
+model UserAddress {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String?
+  fullName  String   @map("full_name")
+  phone     String?
+  address   String
+  city      String
+  state     String?
+  zip       String?
+  country   String?
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("user_addresses")
+}
+
+model WishlistItem {
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, productId])
+  @@map("wishlist_items")
+}
+
+model CartItem {
+  userId    String  @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([userId, productId])
+  @@map("cart_items")
+}
+
+model CatalogMeta {
+  id        String   @id @default("global")
+  revision  Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("catalog_meta")
+}

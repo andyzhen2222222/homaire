@@ -24,6 +24,20 @@ export function formatEurPriceCompact(amount: number): string {
   return `€${formatStorePriceAmount(amount)}`;
 }
 
+/** 购物车/结账使用的单价（含促销价） */
+export function getEffectiveUnitPrice(product: {
+  price: number;
+  onSale?: boolean;
+  discountPrice?: number;
+}): number {
+  const price = roundStorePrice(product.price);
+  if (product.onSale && product.discountPrice != null && product.discountPrice > 0) {
+    const d = roundStorePrice(product.discountPrice);
+    if (d < price) return d;
+  }
+  return price;
+}
+
 export function normalizeProductPrices<T extends { price: number; discountPrice?: number }>(product: T): T {
   const price = roundStorePrice(product.price);
   let discountPrice = product.discountPrice;

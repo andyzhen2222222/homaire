@@ -1,3 +1,7 @@
+/**
+ * Legacy JSON file store — read-only seed source for SQLite migration.
+ * Runtime catalog/orders are served from SQLite via apiRouter.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -1,10 +1,10 @@
 /** Enable shared server store (catalog sync + centralized orders) */
 export function isRemoteStoreEnabled(): boolean {
   const flag = import.meta.env.VITE_USE_REMOTE_STORE;
-  if (flag === 'true' || flag === '1') return true;
   if (flag === 'false' || flag === '0') return false;
-  // Auto-enable in production builds when not explicitly disabled
-  return import.meta.env.PROD;
+  if (flag === 'true' || flag === '1') return true;
+  // Default on: SQLite backend is the source of truth in dev and production
+  return true;
 }
 
 export function getStorePollIntervalMs(): number {

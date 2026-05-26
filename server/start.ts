@@ -1,5 +1,5 @@
 /**
- * Production: static site + shared store API
+ * Production: static site + shared store API (SQLite)
  *   npm run build && npm run start
  */
 import express from 'express';
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleFeishuStatusRequest, handleFeishuSyncRequest } from './feishuSyncApi';
 import { handleStoreApiRequest } from './storeApi';
-import { getStorePath, readStoreFile } from './jsonFileStore';
+import { initDatabase, logDatabaseStatus } from './db/init';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -20,14 +20,8 @@ if (!fs.existsSync(distDir)) {
   process.exit(1);
 }
 
-// Ensure store file exists (may seed from public/dist snapshot)
-const store = readStoreFile();
-const productCount = store.catalog.products?.length ?? 0;
-console.log('Store file:', getStorePath());
-console.log(`Catalog: ${productCount} products (revision ${store.revision})`);
-if (productCount === 0) {
-  console.warn('Catalog is empty — run: npm run migrate:server -- public/feishu-bitable-db-v1.json');
-}
+await initDatabase();
+await logDatabaseStatus();
 
 const app = express();
 app.disable('x-powered-by');
@@ -44,7 +38,12 @@ app.use((req, res, next) => {
     void handleFeishuStatusRequest(req as unknown as IncomingMessage, res as unknown as ServerResponse);
     return;
   }
-  if (handleStoreApiRequest(req as unknown as IncomingMessage, res as unknown as ServerResponse)) {
+  if (url.startsWith('/api/v1/') || url.startsWith('/api/store/')) {
+    void handleStoreApiRequest(req as unknown as IncomingMessage, res as unknown as ServerResponse).then(
+      (handled) => {
+        if (!handled) next();
+      }
+    );
     return;
   }
   next();
@@ -57,6 +56,6 @@ app.get('*', (_req, res) => {
 
 app.listen(port, () => {
   console.log(`Homaire running at http://localhost:${port}`);
-  console.log('Shared catalog: GET /api/store/catalog');
-  console.log('Orders (admin): GET /api/store/orders');
+  console.log('Catalog: GET /api/v1/catalog or GET /api/store/catalog');
+  console.log('Auth: POST /api/v1/auth/login');
 });

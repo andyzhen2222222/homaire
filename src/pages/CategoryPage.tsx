@@ -10,11 +10,9 @@ import { displayStoreProductListTitle } from '../lib/storeShortTitle';
 import { getProductDetailOutOfStockHint, getProductDetailLowStockHint } from '../lib/storeShipping';
 import { getProductStockQty, getProductPayPrice, isProductLowStock, isProductOutOfStock } from '../lib/productStock';
 import { ProductListImage } from '../components/ProductListImage';
-import { PRODUCT_LIST_IMAGE_ASPECT_CLASS, PRODUCT_LIST_IMAGE_PLACEHOLDER } from '../lib/productImages';
+import { PRODUCT_LIST_IMAGE_ASPECT_CLASS } from '../lib/productImages';
 import { formatEurPrice } from '../lib/storePrice';
 import { displaySubCategoryLabel, getCategoryEnglishName, displayCategoryName } from '../lib/categoryLabels';
-
-const CATEGORY_HERO_FALLBACK = PRODUCT_LIST_IMAGE_PLACEHOLDER;
 
 /** 分类栅格 `text-base`，与首页卡片一致 */
 const CATEGORY_GRID_TITLE_MAX = 56;
@@ -26,12 +24,19 @@ export default function CategoryPage() {
   const { addItem } = useCart();
   const { config } = useStoreConfig();
   const { categories } = useCategories();
-
-  const { products, loading } = useProducts(slug);
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'newest'>('featured');
   const [showFilters, setShowFilters] = useState(false);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
   const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
+
+  const { products, loading, error: productsError } = useProducts({
+    category: slug,
+    subCategory: subCategory ?? undefined,
+    minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+    maxPrice: priceRange[1] < 5000 ? priceRange[1] : undefined,
+    sort: sortBy === 'featured' ? undefined : sortBy,
+    limit: 200,
+  });
 
   // Get available subcategories for this category
   const availableSubs = useMemo(() => {
@@ -73,12 +78,6 @@ export default function CategoryPage() {
     return result;
   }, [products, sortBy, priceRange, subCategory, selectedSubs]);
 
-  const isSubCategory = useMemo(() => {
-    if (!slug) return false;
-    const catRow = categories.find((c) => c.slug === slug);
-    return Boolean(catRow?.parentId);
-  }, [slug, categories]);
-
   const currentCategory = useMemo(() => {
     const base =
       slug && DEFAULT_CATEGORY_HEROES[slug]
@@ -88,31 +87,24 @@ export default function CategoryPage() {
               .replace(/-/g, ' ')
               .replace(/\b\w/g, (c) => c.toUpperCase()),
             subtitle: 'Discover pieces curated for modern living.',
-            image: CATEGORY_HERO_FALLBACK,
           };
     const enSlugTitle = slug ? getCategoryEnglishName(slug, categories) : '';
     const catRow = slug ? categories.find((c) => c.slug === slug) : undefined;
     const dbTitle = catRow ? displayCategoryName(catRow) : enSlugTitle;
     const ov = slug ? config?.categoryHeroes?.[slug] : undefined;
-    const dbImage = (catRow?.image || '').trim();
-    const heroDefault = slug ? DEFAULT_CATEGORY_HEROES[slug]?.image : undefined;
     if (!ov) {
-      return {
-        ...(dbTitle ? { ...base, title: dbTitle } : base),
-        image: dbImage || base.image || heroDefault || CATEGORY_HERO_FALLBACK,
-      };
+      return dbTitle ? { ...base, title: dbTitle } : base;
     }
     return {
       title: (ov.title && ov.title.trim()) || dbTitle || base.title,
       subtitle: (ov.subtitle && ov.subtitle.trim()) || base.subtitle,
-      image: (ov.image && ov.image.trim()) || dbImage || base.image || heroDefault || CATEGORY_HERO_FALLBACK,
     };
   }, [slug, config?.categoryHeroes, categories]);
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 animate-pulse mt-[100px]">
-        {!isSubCategory && <div className="h-20 bg-brand-gray mb-12 w-1/3 rounded-xl" />}
+      <div className="max-w-7xl mx-auto px-4 py-20 animate-pulse pt-[100px]">
+        <div className="h-20 bg-brand-gray mb-12 w-1/3 rounded-xl" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
           {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="aspect-square bg-brand-gray rounded-xl" />)}
         </div>
@@ -121,28 +113,7 @@ export default function CategoryPage() {
   }
 
   return (
-    <div className={`flex flex-col min-h-screen bg-white ${isSubCategory ? 'pt-[100px]' : ''}`}>
-      {!isSubCategory && (
-      <section className="relative h-[55vh] w-full overflow-hidden shrink-0 mt-[100px]">
-        <div className="absolute inset-0 bg-brand-navy/30 z-10" />
-        <div className="absolute inset-0 w-full h-full">
-          <motion.img
-            initial={{ scale: 1.05, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1.2, ease: 'easeOut' }}
-            src={currentCategory.image}
-            alt=""
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-            onError={(e) => {
-              e.currentTarget.src = CATEGORY_HERO_FALLBACK;
-            }}
-          />
-        </div>
-        <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-white to-transparent z-25" />
-      </section>
-      )}
-
+    <div className="flex flex-col min-h-screen bg-white pt-[100px]">
       <div className="max-w-7xl mx-auto px-4 py-16 flex-grow w-full">
         {/* Category Header */}
         <div className="mb-12 border-b border-brand-gray pb-12">
@@ -355,11 +326,15 @@ export default function CategoryPage() {
             })}
           </div>
           
-          {sortedProducts.length === 0 && (
+          {sortedProducts.length === 0 && !loading && (
             <div className="text-center py-40 bg-brand-gray/30 border border-brand-gray rounded-[40px]">
-              <p className="font-bold uppercase tracking-tighter text-3xl text-brand-navy/20">No matching pieces identified.</p>
+              {productsError ? (
+                <p className="font-bold text-red-600 text-sm max-w-md mx-auto">{productsError}</p>
+              ) : (
+                <p className="font-bold uppercase tracking-tighter text-3xl text-brand-navy/20">No matching pieces identified.</p>
+              )}
               <button 
-                onClick={() => { setPriceRange([0, 5000]); setSortBy('featured'); }}
+                onClick={() => { setPriceRange([0, 5000]); setSortBy('featured'); setSelectedSubs([]); }}
                 className="mt-6 text-[10px] font-bold uppercase tracking-widest text-brand-beige hover:underline"
               >
                 Clear Filters

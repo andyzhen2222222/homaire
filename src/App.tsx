@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import { AuthProvider } from './components/AuthContext';
+import { AuthModal } from './components/AuthModal';
 import { CartProvider } from './components/CartContext';
 import CategoryPage from './pages/CategoryPage';
 import ProductDetail from './pages/ProductDetail';
@@ -27,6 +28,7 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <AuthModal />
       <CartProvider>
         <BrowserRouter>
           <ScrollToTop />

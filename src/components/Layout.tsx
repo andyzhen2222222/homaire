@@ -6,7 +6,6 @@ import { useCart } from './CartContext';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
 import { useStoreConfig, useCategories } from '../hooks/useAdminData';
-import { useProducts } from '../hooks/useProducts';
 import { HOMAIRE_SLOGAN } from '../content/homaireBrandStory';
 import {
   GLOBAL_SERVICE_STRIP_TITLE_DEFAULT,
@@ -37,9 +36,13 @@ export default function Layout() {
   const { user, profile, login } = useAuth();
   const { itemCount } = useCart();
   const { config } = useStoreConfig();
-  const { categories } = useCategories();
-  const { products } = useProducts();
-  const navDepartments = buildStorefrontNavMenu(categories, config?.navDepartments, products);
+  const { categories, productCountsBySlug } = useCategories();
+  const navDepartments = buildStorefrontNavMenu(
+    categories,
+    config?.navDepartments,
+    [],
+    productCountsBySlug
+  );
 
   useEffect(() => {
     const t = (config?.siteTitle || config?.storeName || 'Homaire').trim();

@@ -137,6 +137,26 @@ assert(pricePriority[0].onSale === true, 'onSale when floor < list');
 assert(pricePriority[0].name === 'Modern pedestal coffee table', 'English product title');
 assert(pricePriority[0].stock === 12, 'stock from 可售库存');
 
+const floorOnlyList = processImportedProductRows([
+  {
+    SKU: 'T-FLOOR-ONLY',
+    '产品标题-英语': 'Floor price only shelf',
+    '法国平台调价最低价': '52.07',
+    '可售库存': '3',
+  },
+], { defaultCategory: 'cabinets', inferCategoryFromRowData: false });
+assert(floorOnlyList[0].price === 52, `floor-only list expected 52, got ${floorOnlyList[0].price}`);
+assert(floorOnlyList[0].onSale === false, 'no sale when only floor price');
+
+const mappedPriceColumn = processImportedProductRows([
+  {
+    price: '199',
+    '可售库存': '1',
+    '产品标题-英语': 'Mapped price column',
+  },
+], { defaultCategory: 'tables', inferCategoryFromRowData: false });
+assert(mappedPriceColumn[0].price === 199, `mapped price column expected 199, got ${mappedPriceColumn[0].price}`);
+
 const frenchTitleFirst = processImportedProductRows([
   {
     SKU: 'T3323P299344',

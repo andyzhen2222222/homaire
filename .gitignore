@@ -10,6 +10,13 @@ VI
 
 # Server-side shared store (runtime data)
 data/store-v1.json
+data/homaire.db
+data/homaire.db-journal
+prisma/data/*.db
+prisma/data/*.db-journal
+
+# Local diagnostics
+scripts/diag-feishu-price-title.out.txt
 
 # Logs
 npm-debug.log*

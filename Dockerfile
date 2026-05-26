@@ -7,7 +7,7 @@ RUN npm ci
 
 COPY . .
 
-RUN npm run build && npm run migrate:server
+RUN npm run build && npm run db:push && npm run migrate:sqlite
 
 ENV NODE_ENV=production
 ENV PORT=3000

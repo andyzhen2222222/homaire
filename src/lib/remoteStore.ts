@@ -8,6 +8,8 @@ import {
   subscribeLocalDb,
   type LocalOrder,
 } from './localDb';
+import { authHeaders } from './authToken';
+import { emitCatalogInvalidate } from './catalogEvents';
 import { getStoreAdminHeaders, getStorePollIntervalMs, isRemoteStoreEnabled } from './storeConfig';
 
 let catalogRevision = 0;
@@ -121,10 +123,14 @@ export async function pullOrdersFromServer(): Promise<void> {
 }
 
 export async function createOrderOnServer(order: Omit<Order, 'id' | 'createdAt'>): Promise<string> {
-  const res = await fetch('/api/store/orders', {
+  const payload = {
+    items: order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    shippingAddress: order.shippingAddress,
+  };
+  const res = await fetch('/api/v1/orders', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(order),
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload),
   });
   const body = (await res.json()) as { ok?: boolean; order?: LocalOrder; error?: string };
   if (!res.ok || !body.ok || !body.order) {
@@ -162,7 +168,6 @@ export async function fetchUserOrdersFromServer(userId: string): Promise<LocalOr
 }
 
 async function pollTick(): Promise<void> {
-  await pullCatalogFromServer();
   await pullOrdersFromServer();
 }
 
@@ -183,6 +188,7 @@ export function initRemoteStoreSync(): void {
 export async function syncAdminChangeToServer(): Promise<void> {
   if (!isRemoteStoreEnabled()) return;
   await pushCatalogToServer();
+  emitCatalogInvalidate();
 }
 
 export { isRemoteStoreEnabled, subscribeLocalDb };

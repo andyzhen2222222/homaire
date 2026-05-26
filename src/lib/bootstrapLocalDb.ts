@@ -1,16 +1,15 @@
-import { tryAutoLoadFeishuSnapshot } from './localDb';
 import { isRemoteStoreEnabled } from './storeConfig';
-import { initRemoteStoreSync, pullCatalogFromServer } from './remoteStore';
+import { initRemoteStoreSync } from './remoteStore';
 
 let bootstrapped = false;
 
-/** 应用启动：先拉 API，失败或空库时回退到 dist 内快照；生产环境再开启轮询同步 */
+/**
+ * 应用启动：商品/分类/配置由各页面实时请求 API；
+ * 仅保留订单轮询（管理端）。
+ */
 export async function bootstrapLocalDbOnce(): Promise<void> {
   if (bootstrapped) return;
   bootstrapped = true;
-
-  await pullCatalogFromServer();
-  await tryAutoLoadFeishuSnapshot();
 
   if (isRemoteStoreEnabled()) {
     initRemoteStoreSync();
