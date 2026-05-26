@@ -26,7 +26,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "ensure:catalog": "tsx prisma/seed.ts",
-    "deploy:prepare": "npm run db:push && npm run migrate:sqlite && npm run build",
+    "deploy:prepare": "npm run db:push && npm run migrate:sqlite:snapshot && npm run build",
     "prestart": "tsx prisma/seed.ts",
     "start": "tsx server/start.ts"
   },

@@ -1,5 +1,13 @@
 import type { Category, Product, Promotion, StoreConfig } from '../types';
 import { getSubtreeSlugsByRootSlug } from './categoryTree';
+import {
+  fetchCategoriesFromSnapshot,
+  fetchProductByIdFromSnapshot,
+  fetchProductsFromSnapshot,
+  fetchPromotionsFromSnapshot,
+  fetchStoreConfigFromSnapshot,
+  responseLooksLikeHtml,
+} from './catalogSnapshotFallback';
 
 export type FetchProductsParams = {
   category?: string;
@@ -23,21 +31,31 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
   return q ? `?${q}` : '';
 }
 
+async function parseJsonResponse<T>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  if (responseLooksLikeHtml(res, text)) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchProductsLegacyCatalog(category?: string): Promise<{ items: Product[]; total: number }> {
   const res = await fetch('/api/store/catalog', { cache: 'no-store' });
-  const body = (await res.json()) as {
+  const body = await parseJsonResponse<{
     ok?: boolean;
     catalog?: { products?: Product[] };
-  };
-  if (!res.ok || !body.ok || !body.catalog?.products) {
+  }>(res);
+  if (!body?.ok || !body.catalog?.products) {
     throw new Error('Legacy catalog unavailable');
   }
   let items = body.catalog.products;
   if (category) {
     try {
       const catRes = await fetch('/api/v1/categories', { cache: 'no-store' });
-      const catBody = (await catRes.json()) as { categories?: Category[] };
-      const slugs = getSubtreeSlugsByRootSlug(category.trim(), catBody.categories ?? []);
+      const catBody = await parseJsonResponse<{ categories?: Category[] }>(catRes);
+      const slugs = getSubtreeSlugsByRootSlug(category.trim(), catBody?.categories ?? []);
       items = items.filter((p) => slugs.has((p.category || '').trim()));
     } catch {
       const slug = category.trim().toLowerCase();
@@ -63,18 +81,19 @@ export async function fetchProductsFromApi(
   });
   try {
     const res = await fetch(`/api/v1/products${qs}`, { cache: 'no-store' });
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      throw new Error(
-        '商品接口未接通（返回了网页而非 JSON）。请关闭占用 3000 端口的旧进程后重新执行 npm run dev。'
-      );
-    }
-    const body = (await res.json()) as {
+    const body = await parseJsonResponse<{
       ok?: boolean;
       items?: Product[];
       total?: number;
       error?: string;
-    };
+    }>(res);
+    if (!body) {
+      const snap = await fetchProductsFromSnapshot(params);
+      if (snap) return snap;
+      throw new Error(
+        '商品接口未接通（/api 返回了网页）。请在服务器用 Node 启动并配置 Nginx 反代，见 deploy/nginx-homaire.conf。'
+      );
+    }
     if (!res.ok || !body.ok) {
       throw new Error(body.error || `Failed to load products (${res.status})`);
     }
@@ -83,6 +102,8 @@ export async function fetchProductsFromApi(
     try {
       return await fetchProductsLegacyCatalog(params.category);
     } catch {
+      const snap = await fetchProductsFromSnapshot(params);
+      if (snap) return snap;
       throw primaryErr;
     }
   }
@@ -91,7 +112,10 @@ export async function fetchProductsFromApi(
 export async function fetchProductByIdFromApi(id: string): Promise<Product | null> {
   const res = await fetch(`/api/v1/products/${encodeURIComponent(id)}`, { cache: 'no-store' });
   if (res.status === 404) return null;
-  const body = (await res.json()) as { ok?: boolean; product?: Product; error?: string };
+  const body = await parseJsonResponse<{ ok?: boolean; product?: Product; error?: string }>(res);
+  if (!body) {
+    return fetchProductByIdFromSnapshot(id);
+  }
   if (!res.ok || !body.ok || !body.product) {
     throw new Error(body.error || `Failed to load product (${res.status})`);
   }
@@ -103,12 +127,17 @@ export async function fetchCategoriesFromApi(): Promise<{
   productCountsBySlug: Record<string, number>;
 }> {
   const res = await fetch('/api/v1/categories', { cache: 'no-store' });
-  const body = (await res.json()) as {
+  const body = await parseJsonResponse<{
     ok?: boolean;
     categories?: Category[];
     productCountsBySlug?: Record<string, number>;
     error?: string;
-  };
+  }>(res);
+  if (!body) {
+    const snap = await fetchCategoriesFromSnapshot();
+    if (snap) return snap;
+    throw new Error('Categories API unavailable');
+  }
   if (!res.ok || !body.ok) {
     throw new Error(body.error || `Failed to load categories (${res.status})`);
   }
@@ -120,7 +149,12 @@ export async function fetchCategoriesFromApi(): Promise<{
 
 export async function fetchStoreConfigFromApi(): Promise<StoreConfig> {
   const res = await fetch('/api/v1/store-config', { cache: 'no-store' });
-  const body = (await res.json()) as { ok?: boolean; config?: StoreConfig; error?: string };
+  const body = await parseJsonResponse<{ ok?: boolean; config?: StoreConfig; error?: string }>(res);
+  if (!body) {
+    const snap = await fetchStoreConfigFromSnapshot();
+    if (snap) return snap;
+    throw new Error('Store config API unavailable');
+  }
   if (!res.ok || !body.ok || !body.config) {
     throw new Error(body.error || `Failed to load store config (${res.status})`);
   }
@@ -129,7 +163,12 @@ export async function fetchStoreConfigFromApi(): Promise<StoreConfig> {
 
 export async function fetchPromotionsFromApi(active = true): Promise<Promotion[]> {
   const res = await fetch(`/api/v1/promotions${active ? '?active=true' : ''}`, { cache: 'no-store' });
-  const body = (await res.json()) as { ok?: boolean; promotions?: Promotion[]; error?: string };
+  const body = await parseJsonResponse<{ ok?: boolean; promotions?: Promotion[]; error?: string }>(res);
+  if (!body) {
+    const list = await fetchPromotionsFromSnapshot(active);
+    if (list) return list;
+    throw new Error('Promotions API unavailable');
+  }
   if (!res.ok || !body.ok) {
     throw new Error(body.error || `Failed to load promotions (${res.status})`);
   }

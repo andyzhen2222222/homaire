@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleFeishuStatusRequest, handleFeishuSyncRequest } from './feishuSyncApi';
 import { handleStoreApiRequest } from './storeApi';
 import { initDatabase, logDatabaseStatus } from './db/init';
+import { prisma } from './db/client';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '..', 'dist');
@@ -27,6 +28,18 @@ const app = express();
 app.disable('x-powered-by');
 
 app.use(express.json({ limit: '32mb' }));
+
+app.get('/api/health', async (_req, res) => {
+  try {
+    const productCount = await prisma.product.count();
+    res.json({ ok: true, productCount, backend: 'sqlite' });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+});
 
 app.use((req, res, next) => {
   const url = req.url?.split('?')[0] ?? '';

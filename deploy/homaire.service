@@ -1,0 +1,17 @@
+[Unit]
+Description=Homaire store (Node + SQLite)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/homaire
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DATABASE_URL=file:./data/homaire.db
+# 生产环境请用 EnvironmentFile=/var/www/homaire/.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

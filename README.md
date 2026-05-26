@@ -23,6 +23,19 @@ View your app in AI Studio: https://ai.studio/apps/8092069b-3461-4b08-861f-8b790
 5. Development: `npm run dev` — Vite + SQLite API on port 3000
 6. Production: `npm run build && npm run start`
 
+### Deploy to homaire.eu (or any VPS)
+
+**Symptom:** site loads but **no products** — usually `/api/v1/products` returns the SPA `index.html` instead of JSON.
+
+1. On the server: `git pull && npm ci && npm run deploy:prepare`
+2. Set `.env` (`DATABASE_URL`, `JWT_SECRET`, admin passwords).
+3. Run **`npm run start`** (port 3000) under systemd/PM2 — see [`deploy/homaire.service`](deploy/homaire.service).
+4. Point Nginx at Node for **both** `/` and `/api/` — see [`deploy/nginx-homaire.conf`](deploy/nginx-homaire.conf). Do **not** serve only `dist/` as static files without proxying `/api` to Node.
+5. Persist SQLite: mount `./data` (or set `DATABASE_URL` to a volume path).
+6. Verify: `curl -sI https://homaire.eu/api/v1/products?limit=1` should show `Content-Type: application/json`.
+
+If API is temporarily unreachable, the storefront falls back to `/feishu-bitable-db-v1.json` (bundled in `public/`). Checkout and admin still need a working API.
+
 ### Backend API
 
 | Area | Endpoints |

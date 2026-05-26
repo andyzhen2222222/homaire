@@ -31,12 +31,6 @@ export async function initDatabase(): Promise<void> {
 }
 
 async function importInitialCatalog(): Promise<void> {
-  const jsonStore = readStoreFile();
-  if (jsonStore.catalog.products.length > 0) {
-    console.log(`Seeding SQLite from JSON store (${jsonStore.catalog.products.length} products)...`);
-    await replaceFullCatalog(jsonStore.catalog);
-    return;
-  }
   const snapshotPath = path.join(__dirname, '..', '..', 'public', 'feishu-bitable-db-v1.json');
   if (fs.existsSync(snapshotPath)) {
     const raw = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as {
@@ -56,7 +50,14 @@ async function importInitialCatalog(): Promise<void> {
           storeName: 'HOMAIRE',
         },
       });
+      return;
     }
+  }
+
+  const jsonStore = readStoreFile();
+  if (jsonStore.catalog.products.length > 0) {
+    console.log(`Seeding SQLite from JSON store (${jsonStore.catalog.products.length} products)...`);
+    await replaceFullCatalog(jsonStore.catalog);
   }
 }
 
