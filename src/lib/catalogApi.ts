@@ -91,7 +91,7 @@ export async function fetchProductsFromApi(
       const snap = await fetchProductsFromSnapshot(params);
       if (snap) return snap;
       throw new Error(
-        '商品接口未接通（/api 返回了网页）。请在服务器用 Node 启动并配置 Nginx 反代，见 deploy/nginx-homaire.conf。'
+        '商品数据无法加载：/api 与商品快照均未接通。本地请执行 npm run dev 并打开 http://localhost:3000；服务器请 npm run start + 配置 deploy/nginx-homaire.conf 后重新部署。'
       );
     }
     if (!res.ok || !body.ok) {

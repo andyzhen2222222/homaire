@@ -3,6 +3,7 @@ import type { Plugin } from 'vite';
 import { handleFeishuStatusRequest, handleFeishuSyncRequest } from './feishuSyncApi';
 import { handleStoreApiRequest } from './storeApi';
 import { initDatabase, logDatabaseStatus } from './db/init';
+import { prisma } from './db/client';
 
 let dbReady: Promise<void> | null = null;
 
@@ -30,6 +31,13 @@ function createApiMiddleware(): Connect.NextHandleFunction {
       }
       if (url === '/api/feishu/status' && req.method === 'GET') {
         void handleFeishuStatusRequest(req, res);
+        return;
+      }
+      if (url === '/api/health' && req.method === 'GET') {
+        const count = await prisma.product.count();
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify({ ok: true, productCount: count, backend: 'sqlite' }));
         return;
       }
       if (url.startsWith('/api/v1/') || url.startsWith('/api/store/')) {

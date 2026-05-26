@@ -21,6 +21,7 @@
     "migrate:sqlite": "tsx scripts/migrate-json-to-sqlite.ts",
     "migrate:sqlite:snapshot": "tsx scripts/migrate-json-to-sqlite.ts --from-snapshot",
     "backfill:titles": "tsx scripts/backfill-product-titles-from-snapshot.ts",
+    "check:api": "tsx scripts/check-store-api.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
