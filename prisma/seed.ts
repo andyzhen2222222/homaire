@@ -1,5 +1,8 @@
+import { ensureEnv } from '../scripts/ensure-env';
 import { initDatabase } from '../server/db/init';
 import { prisma } from '../server/db/client';
+
+ensureEnv();
 
 async function main(): Promise<void> {
   await initDatabase();

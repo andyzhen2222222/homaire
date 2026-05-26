@@ -31,54 +31,60 @@ export async function loadCatalog(): Promise<{ revision: number; catalog: StoreC
   };
 }
 
+const CATALOG_IMPORT_BATCH = 150;
+
 export async function replaceFullCatalog(catalog: StoreCatalog): Promise<number> {
-  await prisma.$transaction(async (tx) => {
-    await tx.product.deleteMany();
-    await tx.category.deleteMany();
-    await tx.promotion.deleteMany();
+  await prisma.$transaction([
+    prisma.product.deleteMany(),
+    prisma.promotion.deleteMany(),
+    prisma.category.deleteMany(),
+  ]);
 
-    const slugToId = new Map<string, string>();
-    for (const cat of catalog.categories) {
-      const created = await tx.category.create({
-        data: {
-          id: cat.id,
-          name: cat.name,
-          slug: cat.slug,
-          image: cat.image,
-          description: cat.description ?? null,
-          parentId: cat.parentId ?? null,
-          sortOrder: cat.sortOrder ?? 0,
-          featuredProductIds: stringifyJson(cat.featuredProductIds ?? []),
-          feishuBitableUrl: cat.feishuBitableUrl ?? null,
-          feishuSyncEnabled: cat.feishuSyncEnabled ?? false,
-          feishuSyncIntervalMinutes: cat.feishuSyncIntervalMinutes ?? 120,
-          feishuLastSyncedAt: cat.feishuLastSyncedAt ? new Date(cat.feishuLastSyncedAt) : null,
-          feishuLastSyncCount: cat.feishuLastSyncCount ?? null,
-          feishuLastSyncMessage: cat.feishuLastSyncMessage ?? null,
-        },
-      });
-      slugToId.set(cat.slug, created.id);
-    }
+  const slugToId = new Map<string, string>();
+  for (const cat of catalog.categories) {
+    const created = await prisma.category.create({
+      data: {
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        image: cat.image,
+        description: cat.description ?? null,
+        parentId: cat.parentId ?? null,
+        sortOrder: cat.sortOrder ?? 0,
+        featuredProductIds: stringifyJson(cat.featuredProductIds ?? []),
+        feishuBitableUrl: cat.feishuBitableUrl ?? null,
+        feishuSyncEnabled: cat.feishuSyncEnabled ?? false,
+        feishuSyncIntervalMinutes: cat.feishuSyncIntervalMinutes ?? 120,
+        feishuLastSyncedAt: cat.feishuLastSyncedAt ? new Date(cat.feishuLastSyncedAt) : null,
+        feishuLastSyncCount: cat.feishuLastSyncCount ?? null,
+        feishuLastSyncMessage: cat.feishuLastSyncMessage ?? null,
+      },
+    });
+    slugToId.set(cat.slug, created.id);
+  }
 
-    let uncategorizedId = slugToId.get('uncategorized');
-    if (!uncategorizedId) {
-      const unc = await tx.category.create({
-        data: {
-          name: 'Uncategorized',
-          slug: 'uncategorized',
-          image: '',
-          sortOrder: 9999,
-        },
-      });
-      uncategorizedId = unc.id;
-      slugToId.set('uncategorized', unc.id);
-    }
+  let uncategorizedId = slugToId.get('uncategorized');
+  if (!uncategorizedId) {
+    const unc = await prisma.category.create({
+      data: {
+        name: 'Uncategorized',
+        slug: 'uncategorized',
+        image: '',
+        sortOrder: 9999,
+      },
+    });
+    uncategorizedId = unc.id;
+    slugToId.set('uncategorized', unc.id);
+  }
 
-    for (const p of catalog.products) {
-      const categoryId = slugToId.get(p.category) ?? uncategorizedId!;
-      const productData = productInputToDb(p, p.category, categoryId);
-      await tx.product.create({
-        data: {
+  const products = catalog.products;
+  for (let i = 0; i < products.length; i += CATALOG_IMPORT_BATCH) {
+    const chunk = products.slice(i, i + CATALOG_IMPORT_BATCH);
+    await prisma.product.createMany({
+      data: chunk.map((p) => {
+        const categoryId = slugToId.get(p.category) ?? uncategorizedId!;
+        const productData = productInputToDb(p, p.category, categoryId);
+        return {
           id: p.id,
           name: productData.name as string,
           description: productData.description as string,
@@ -98,32 +104,36 @@ export async function replaceFullCatalog(catalog: StoreCatalog): Promise<number>
           feishuRecordId: productData.feishuRecordId as string | null,
           shortTitle: productData.shortTitle as string | null,
           detailHtml: productData.detailHtml as string | null,
-        },
-      });
-    }
-
-    for (const promo of catalog.promotions) {
-      await tx.promotion.create({
-        data: {
-          id: promo.id,
-          title: promo.title,
-          subtitle: promo.subtitle ?? null,
-          imageUrl: promo.imageUrl,
-          link: promo.link ?? null,
-          active: promo.active,
-          priority: promo.priority ?? null,
-          type: promo.type,
-        },
-      });
-    }
-
-    const config = catalog.config ?? { id: 'global', storeName: 'HOMAIRE' };
-    await tx.storeSettings.upsert({
-      where: { id: 'global' },
-      create: { id: 'global', storeName: config.storeName ?? 'HOMAIRE', ...storeConfigPatchToDb(config) },
-      update: storeConfigPatchToDb(config),
+        };
+      }),
     });
+    if (products.length > CATALOG_IMPORT_BATCH) {
+      console.log(`  … products ${Math.min(i + CATALOG_IMPORT_BATCH, products.length)} / ${products.length}`);
+    }
+  }
+
+  if (catalog.promotions.length > 0) {
+    await prisma.promotion.createMany({
+      data: catalog.promotions.map((promo) => ({
+        id: promo.id,
+        title: promo.title,
+        subtitle: promo.subtitle ?? null,
+        imageUrl: promo.imageUrl,
+        link: promo.link ?? null,
+        active: promo.active,
+        priority: promo.priority ?? null,
+        type: promo.type,
+      })),
+    });
+  }
+
+  const config = catalog.config ?? { id: 'global', storeName: 'HOMAIRE' };
+  await prisma.storeSettings.upsert({
+    where: { id: 'global' },
+    create: { id: 'global', storeName: config.storeName ?? 'HOMAIRE', ...storeConfigPatchToDb(config) },
+    update: storeConfigPatchToDb(config),
   });
+
   return bumpCatalogRevision();
 }
 

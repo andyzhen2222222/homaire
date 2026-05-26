@@ -7,6 +7,7 @@ VI
 # Local env
 .env
 .env.*
+!.env.example
 
 # Server-side shared store (runtime data)
 data/store-v1.json

@@ -11,6 +11,7 @@ import { seedAdminUser } from '../server/services/authService';
 import { createOrder } from '../server/services/orderService';
 import type { StoreCatalog, StoreFile } from '../server/storeTypes';
 import { readStoreFile } from '../server/jsonFileStore';
+import { ensureEnv } from './ensure-env';
 import { isSkuLikeProductCode } from '../src/lib/storeShortTitle';
 import type { Product } from '../src/types';
 
@@ -43,11 +44,17 @@ function catalogLooksSkuHeavy(products: Product[]): boolean {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = 'file:./data/homaire.db';
+  ensureEnv();
+
+  if (process.argv.includes('--if-empty')) {
+    const existing = await prisma.product.count();
+    if (existing > 0) {
+      console.log(`Skip import: database already has ${existing} products`);
+      return;
+    }
   }
 
-  const argPath = process.argv[2];
+  const argPath = process.argv.slice(2).find((a) => !a.startsWith('--'));
   let store: StoreFile | null = null;
 
   if (argPath && fs.existsSync(argPath)) {
